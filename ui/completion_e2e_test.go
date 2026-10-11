@@ -298,6 +298,50 @@ func TestCompletionSingleMatchAppliesInline(t *testing.T) {
 	}
 }
 
+func TestCompletionPreservesQueryAfterCursor(t *testing.T) {
+	for _, tc := range []struct{ query, want string }{
+		{"format=json", "GET _cat/plugins?v&format=json"},
+		{"v", "GET _cat/plugins?v"},
+		{"v=false&format=json", "GET _cat/plugins?v=false&format=json"},
+		{"format=json&%76=false", "GET _cat/plugins?format=json&%76=false"},
+		{"tag=a%2Bb&tag=c+d", "GET _cat/plugins?v&tag=a%2Bb&tag=c+d"},
+		{"", "GET _cat/plugins?v"},
+	} {
+		t.Run(tc.query, func(t *testing.T) {
+			app, screen := newTestApp(t)
+			text := "GET _cat/pl?" + tc.query + "\nGET _cluster/health"
+			uiValue(app, func() bool {
+				app.editor.view.SetText(text, false)
+				cursor := len("GET _cat/pl")
+				app.editor.view.Select(cursor, cursor)
+				return true
+			})
+			screen.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
+			waitForDraw(t, screen)
+			if got, want := editorText(app), tc.want+"\nGET _cluster/health"; got != want {
+				t.Fatalf("completion must merge parameters without changing the next request: got %q, want %q", got, want)
+			}
+		})
+	}
+}
+
+func TestCompletionTypeaheadPreservesQueryAfterCursor(t *testing.T) {
+	app, screen := newTestApp(t)
+	uiValue(app, func() bool {
+		app.editor.view.SetText("GET _cat/s?format=json", false)
+		cursor := len("GET _cat/s")
+		app.editor.view.Select(cursor, cursor)
+		return true
+	})
+	screen.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
+	injectText(screen, "h")
+	screen.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitForDraw(t, screen)
+	if got := editorText(app); got != "GET _cat/shards?v&format=json" {
+		t.Fatalf("typeahead should search the path while preserving its query, got %q", got)
+	}
+}
+
 // TestCompletionTrailingSlashIsIgnored covers the reported case: the
 // trailing "/" before the parameters (or at the very end of the path) is
 // optional in HTTP — "_cat/plugins/" must complete like "_cat/plugins",
@@ -315,6 +359,69 @@ func TestCompletionTrailingSlashIsIgnored(t *testing.T) {
 	want := "GET _cat/plugins?v"
 	if got != want {
 		t.Errorf("expected the trailing '/' to be ignored and replaced, got %q want %q", got, want)
+	}
+}
+
+func TestCompletionLeadingSlashIsPreserved(t *testing.T) {
+	for _, tc := range []struct{ input, want string }{
+		{"GET /_cat/pl", "GET /_cat/plugins?v"},
+		{"GET /_cat/plugins/", "GET /_cat/plugins?v"},
+		{"GET /_cat/indices?h=heal", "GET /_cat/indices?h=health"},
+		{"GET /_cat/shards?s=index:de", "GET /_cat/shards?s=index:desc"},
+	} {
+		t.Run(tc.input, func(t *testing.T) {
+			app, screen := newTestApp(t)
+			injectText(screen, tc.input)
+			screen.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
+			waitForDraw(t, screen)
+			if got := editorText(app); got != tc.want {
+				t.Fatalf("completion with a leading slash: got %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestCompletionLeadingSlashTypeahead(t *testing.T) {
+	app, screen := newTestApp(t)
+	injectText(screen, "GET /_cat/s")
+	screen.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
+	injectText(screen, "h")
+	screen.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitForDraw(t, screen)
+	if got := editorText(app); got != "GET /_cat/shards?v" {
+		t.Fatalf("typeahead should preserve the leading slash, got %q", got)
+	}
+}
+
+func TestCompletionLeadingSlashCustomEndpoints(t *testing.T) {
+	for _, input := range []string{"GET /_review/st", "GET /"} {
+		t.Run(input, func(t *testing.T) {
+			userDir := t.TempDir()
+			writeReferenceFile(t, userDir, "endpoints.txt", "/_review/status\n")
+			app, screen := newTestAppWith(t, testAppOptions{reference: refdata.Sources{UserDir: userDir}})
+			injectText(screen, input)
+			screen.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
+			if input == "GET /" {
+				injectText(screen, "_review/st")
+				screen.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+			}
+			waitForDraw(t, screen)
+			if got := editorText(app); got != "GET /_review/status" {
+				t.Fatalf("slash-prefixed custom endpoints should still complete, got %q", got)
+			}
+		})
+	}
+}
+
+func TestCompletionLeadingSlashDoesNotDuplicateBuiltin(t *testing.T) {
+	userDir := t.TempDir()
+	writeReferenceFile(t, userDir, "endpoints.txt", "/_cat/plugins?v\n")
+	app, screen := newTestAppWith(t, testAppOptions{reference: refdata.Sources{UserDir: userDir}})
+	injectText(screen, "GET /_cat/pl")
+	screen.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
+	waitForDraw(t, screen)
+	if got := editorText(app); got != "GET /_cat/plugins?v" {
+		t.Fatalf("equivalent candidates should complete inline, got %q", got)
 	}
 }
 
@@ -407,6 +514,93 @@ func TestCompletionTypeaheadJumpsToMatch(t *testing.T) {
 
 	if got, want := editorText(app), "GET _cat/shards?v"; got != want {
 		t.Errorf("expected typeahead selection to be applied on Enter, got %q want %q", got, want)
+	}
+}
+
+func TestCompletionTypeaheadNoMatchCannotApplyStaleSelection(t *testing.T) {
+	app, screen := newTestApp(t)
+	injectText(screen, "GET _cat/s")
+	screen.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
+	injectText(screen, "hzz")
+	screen.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitForDraw(t, screen)
+
+	if got := editorText(app); got != "GET _cat/s" {
+		t.Fatalf("a search with no match applied a stale candidate: %q", got)
+	}
+	if app.tapp.GetFocus() != app.completionList {
+		t.Fatal("the list should stay open so the search can be corrected")
+	}
+	if !strings.Contains(screenText(screen), app.msgs.ErrNoCompletion) {
+		t.Fatal("a search with no match should report it")
+	}
+
+	// Cycling through old candidates must not make a failed search valid.
+	screen.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
+	screen.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitForDraw(t, screen)
+	if got := editorText(app); got != "GET _cat/s" {
+		t.Fatalf("Tab allowed a stale candidate to be applied: %q", got)
+	}
+
+	// Removing the unmatched suffix restores the original matching search.
+	screen.InjectKey(tcell.KeyBackspace2, 0, tcell.ModNone)
+	screen.InjectKey(tcell.KeyBackspace2, 0, tcell.ModNone)
+	waitForDraw(t, screen)
+	if strings.Contains(screenText(screen), app.msgs.ErrNoCompletion) {
+		t.Fatal("the no-match error should clear when a match is restored")
+	}
+	screen.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitForDraw(t, screen)
+	if got := editorText(app); got != "GET _cat/shards?v" {
+		t.Fatalf("the corrected search should apply shards, got %q", got)
+	}
+}
+
+func TestCompletionTypeaheadNoMatchCanBeCancelled(t *testing.T) {
+	app, screen := newTestApp(t)
+	injectText(screen, "GET _cat/s")
+	screen.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
+	injectText(screen, "zz")
+	screen.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitForDraw(t, screen)
+	if got := editorText(app); got != "GET _cat/s" {
+		t.Fatalf("a failed search changed the editor: %q", got)
+	}
+	screen.InjectKey(tcell.KeyEscape, 0, tcell.ModNone)
+	waitForDraw(t, screen)
+	if app.tapp.GetFocus() != app.editor.Primitive() || editorText(app) != "GET _cat/s" {
+		t.Fatal("Escape should return to the unchanged editor")
+	}
+}
+
+func TestCompletionTypeaheadPreservesFallbackWarning(t *testing.T) {
+	srv := newCatHelpServer(t, nil)
+	app, screen := newTestAppWith(t, testAppOptions{clusterURL: srv.URL})
+	injectText(screen, "GET _cat/indices?h=s")
+	screen.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
+	eventually(t, "the fallback warning and column list", func() bool {
+		return completionCount(app) > 1 && strings.Contains(statusText(app), app.msgs.WarnCatColumnsBuiltIn)
+	})
+	injectText(screen, "t")
+	waitForDraw(t, screen)
+	if !strings.Contains(statusText(app), app.msgs.WarnCatColumnsBuiltIn) {
+		t.Fatal("valid typeahead must not clear the CAT fallback warning")
+	}
+}
+
+func TestCompletionTypeaheadRecoveryPreservesNewerStatus(t *testing.T) {
+	app, screen := newTestApp(t)
+	injectText(screen, "GET _cat/s")
+	screen.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
+	injectText(screen, "hz")
+	waitForDraw(t, screen)
+	const newer = "a newer request result"
+	onUI(app, func() { app.status.SetInfo(newer) })
+	screen.InjectKey(tcell.KeyBackspace2, 0, tcell.ModNone)
+	waitForDraw(t, screen)
+	if !strings.Contains(statusText(app), newer) {
+		t.Fatal("recovering from no match must not clear a newer status")
 	}
 }
 

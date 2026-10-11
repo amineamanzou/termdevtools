@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
@@ -104,6 +105,8 @@ type App struct {
 	completionEnd         int
 	completionTypedPrefix string
 	completionTypeahead   string
+	completionNoMatch     bool
+	completionErrorStatus int
 
 	pages       *tview.Pages
 	helpView    *tview.TextView
@@ -202,8 +205,19 @@ func NewApp(tapp *tview.Application, cr ConnectResult, cfg *config.Config, paths
 	a.completionList = tview.NewList().ShowSecondaryText(false)
 	a.completionList.SetBorder(true).SetTitle(msgs.CompletionTitle)
 	a.completionList.SetSelectedFunc(func(_ int, mainText, _ string, _ rune) {
+		if a.completionNoMatch {
+			return
+		}
 		a.editor.ApplyCompletion(a.completionStart, a.completionEnd, mainText)
 		a.closeCompletion()
+	})
+	a.completionList.SetMouseCapture(func(action tview.MouseAction, event *tcell.EventMouse) (tview.MouseAction, *tcell.EventMouse) {
+		if action == tview.MouseLeftClick && a.completionNoMatch && a.completionList.InRect(event.Position()) {
+			// List refocuses itself before selection, triggering our blur
+			// handler. Reject the click first to keep the failed search editable.
+			return tview.MouseConsumed, nil
+		}
+		return action, event
 	})
 	a.completionList.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		switch event.Key() {
@@ -879,6 +893,11 @@ func (a *App) tryCompletion() bool {
 	if !ok {
 		return false
 	}
+	// The client accepts a leading slash; ignore it for matching, then
+	// retain it when inserting an endpoint. Column replacements already
+	// leave the path untouched.
+	leadingSlash := strings.HasPrefix(prefix, "/")
+	prefix = strings.TrimPrefix(prefix, "/")
 
 	if edit, ok := parseCatEdit(prefix, a.catColumns); ok {
 		// A sort direction (asc/desc) needs no column list; a column does,
@@ -908,7 +927,37 @@ func (a *App) tryCompletion() bool {
 	// included), not just the text preceding it — no need to adjust the
 	// bounds for this.
 	endpointPrefix := strings.TrimSuffix(prefix, "/")
-	a.offerCompletions(start, end, matchPrefix(endpointPrefix, a.endpoints))
+	// Team/user files may spell an endpoint with the slash too. Normalize
+	// copies, and avoid offering the same endpoint twice in different forms.
+	endpoints := make([]string, 0, len(a.endpoints))
+	seen := make(map[string]bool)
+	for _, endpoint := range a.endpoints {
+		endpoint = strings.TrimPrefix(endpoint, "/")
+		if !seen[endpoint] {
+			endpoints = append(endpoints, endpoint)
+			seen[endpoint] = true
+		}
+	}
+	matches := matchPrefix(endpointPrefix, endpoints)
+	if leadingSlash {
+		for i := range matches {
+			matches[i] = "/" + matches[i]
+		}
+	}
+	// The cursor may be just before an existing query. Include it in the
+	// replacement and merge it with the candidate's parameters, so ?v and
+	// ?format=json become one query rather than ?v?format=json.
+	suffix := a.editor.Text()[end:]
+	if strings.HasPrefix(suffix, "?") {
+		if space := strings.IndexFunc(suffix, unicode.IsSpace); space >= 0 {
+			suffix = suffix[:space]
+		}
+		for i := range matches {
+			matches[i] = mergeEndpointQuery(matches[i], suffix[1:])
+		}
+		end += len(suffix)
+	}
+	a.offerCompletions(start, end, matches)
 	return true
 }
 
@@ -997,8 +1046,11 @@ func (a *App) openCompletion(start, end int, matches []string) {
 	// item in the list starts with it, so further typeahead keystrokes are
 	// matched against this prefix plus what's typed next, not against the
 	// bare keystrokes alone (see applyCompletionTypeahead).
-	a.completionTypedPrefix = a.editor.Text()[start:end]
+	// The replacement may also include query text after the cursor; that
+	// suffix is not part of the prefix used by typeahead.
+	a.completionTypedPrefix = a.editor.Text()[start:a.editor.CursorOffset()]
 	a.completionTypeahead = ""
+	a.completionNoMatch = false
 	a.updateCompletionTitle()
 
 	a.completionList.Clear()
@@ -1059,6 +1111,12 @@ func (a *App) typeaheadCompletionBackspace() {
 // instead of the list silently not reacting to the keystroke.
 func (a *App) applyCompletionTypeahead() {
 	a.updateCompletionTitle()
+	// Clear only this search's previous error, not a fallback warning or
+	// a newer status written by an asynchronous request.
+	if a.completionNoMatch && a.status.Version() == a.completionErrorStatus {
+		a.status.SetIdle()
+	}
+	a.completionNoMatch = false
 	if a.completionTypeahead == "" {
 		return
 	}
@@ -1070,6 +1128,11 @@ func (a *App) applyCompletionTypeahead() {
 			return
 		}
 	}
+	// Leave the list open for Backspace/Escape, but do not let Enter or a
+	// mouse click apply the selection left over from a previous search.
+	a.completionNoMatch = true
+	a.status.SetError(a.msgs.ErrNoCompletion)
+	a.completionErrorStatus = a.status.Version()
 }
 
 // updateCompletionTitle refreshes the completion list's border title to
