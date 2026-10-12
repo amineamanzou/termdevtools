@@ -16,6 +16,25 @@ const (
 // simply empty there: the package's tests do, along with format verbs that
 // differ between the two.
 type Strings struct {
+	// Named contexts (fork).
+	ContextPickerTitle        string
+	ContextFilterLabel        string
+	ContextsNoMatch           string
+	ContextActiveMark         string
+	ContextChangedMark        string
+	ContextRemovedMark        string
+	ContextLegacyLabel        string
+	ContextLegacySecondary    string
+	ContextCredentialTitleFmt string
+	ContextConnectingFmt      string
+	ContextUnknownFmt         string
+	ContextSaveFailedFmt      string
+	ContextReloadFailedFmt    string
+	ContextReloaded           string
+	UsageContext              string
+	ContextHelpBar            string
+	ContextHelpContent        string
+
 	// Connect screen (connect.go)
 	ConnectListTitle           string
 	NewConnectionLabel         string
@@ -146,6 +165,24 @@ type Strings struct {
 }
 
 var fr = Strings{
+	ContextPickerTitle:        "Contextes — F6 filtre · F7 recharger · Échap retour",
+	ContextFilterLabel:        "Filtre : ",
+	ContextsNoMatch:           "Aucun contexte trouvé",
+	ContextActiveMark:         "(actif)",
+	ContextChangedMark:        "(configuration modifiée)",
+	ContextRemovedMark:        "(retiré)",
+	ContextLegacyLabel:        "Connexions historiques",
+	ContextLegacySecondary:    "Retrouver les connexions et fichiers par URL",
+	ContextCredentialTitleFmt: "Authentification — %s",
+	ContextConnectingFmt:      "Connexion à %s…",
+	ContextUnknownFmt:         "Contexte inconnu : %s",
+	ContextSaveFailedFmt:      "Changement annulé : sauvegarde impossible : %s",
+	ContextReloadFailedFmt:    "Rechargement impossible : %s",
+	ContextReloaded:           "Inventaire rechargé",
+	UsageContext:              "Nom exact du contexte YAML à ouvrir",
+	ContextHelpBar:            "F6 contextes · F7 recharger · Ctrl+Maj+←/→ split",
+	ContextHelpContent:        "F6 : sélectionner un contexte. F7 : recharger contexts.yaml et les fichiers actifs.\nCtrl+Maj+←/→ : redimensionner le split.",
+
 	ConnectListTitle:           " TermDevTools — connexion ",
 	NewConnectionLabel:         "+ Nouvelle connexion",
 	NewConnectionSecondary:     "saisir une nouvelle connexion",
@@ -309,6 +346,24 @@ intégrés. Ces fichiers, tous facultatifs, s'y ajoutent.[white]
 }
 
 var en = Strings{
+	ContextPickerTitle:        "Contexts — F6 filter · F7 reload · Esc back",
+	ContextFilterLabel:        "Filter: ",
+	ContextsNoMatch:           "No matching context",
+	ContextActiveMark:         "(active)",
+	ContextChangedMark:        "(configuration changed)",
+	ContextRemovedMark:        "(removed)",
+	ContextLegacyLabel:        "Historical connections",
+	ContextLegacySecondary:    "Open saved connections and files by URL",
+	ContextCredentialTitleFmt: "Authentication — %s",
+	ContextConnectingFmt:      "Connecting to %s…",
+	ContextUnknownFmt:         "Unknown context: %s",
+	ContextSaveFailedFmt:      "Switch cancelled: could not save: %s",
+	ContextReloadFailedFmt:    "Reload failed: %s",
+	ContextReloaded:           "Context inventory reloaded",
+	UsageContext:              "Exact YAML context name to open",
+	ContextHelpBar:            "F6 contexts · F7 reload · Ctrl+Shift+←/→ split",
+	ContextHelpContent:        "F6: select a context. F7: reload contexts.yaml and active files.\nCtrl+Shift+←/→: resize the split.",
+
 	ConnectListTitle:           " TermDevTools — connect ",
 	NewConnectionLabel:         "+ New connection",
 	NewConnectionSecondary:     "enter a new connection",
