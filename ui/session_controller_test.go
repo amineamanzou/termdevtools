@@ -337,3 +337,103 @@ func TestSwitchSecretPromptCanBeCancelled(t *testing.T) {
 		}
 	})
 }
+
+func contextInventoryFile(t *testing.T, c *SessionController, data string) {
+	t.Helper()
+	if c.options.ContextsPath == "" {
+		c.options.ContextsPath = filepath.Join(t.TempDir(), "contexts.yaml")
+	}
+	if err := os.WriteFile(c.options.ContextsPath, []byte(data), 0600); err != nil {
+		t.Fatal(err)
+	}
+}
+func TestReloadInvalidInventory(t *testing.T) {
+	srv := clusterServer(t)
+	c, _ := startContextController(t, controllerInventory(t, srv.URL))
+	controllerUI(c, func() { c.choose("named:a") })
+	waitController(t, c, func() bool { return c.active != nil })
+	contextInventoryFile(t, c, "contexts: [invalid")
+	files, _ := config.ContextWorkPaths("a")
+	os.MkdirAll(filepath.Dir(files.Variables), 0700)
+	os.WriteFile(files.Variables, []byte("DO_NOT_LEAK"), 0600)
+	controllerUI(c, func() {
+		before := c.active.app.client
+		c.reload()
+		if c.active.app.client != before || len(c.inventory.Definitions()) != 1 {
+			t.Error("invalid reload replaced session")
+		}
+		message := c.picker.message.GetText(false)
+		if !strings.Contains(message, "contexts.yaml") || !strings.Contains(message, "variables.txt") || strings.Contains(message, "DO_NOT_LEAK") {
+			t.Error(message)
+		}
+	})
+}
+func TestReloadChangedActiveContext(t *testing.T) {
+	a, b := clusterServer(t), clusterServer(t)
+	c, _ := startContextController(t, controllerInventory(t, a.URL))
+	controllerUI(c, func() { c.choose("named:a") })
+	waitController(t, c, func() bool { return c.active != nil })
+	contextInventoryFile(t, c, fmt.Sprintf("contexts:\n  - {name: a, url: %s, proxy: none, labels: {env: changed}}\n", a.URL))
+	controllerUI(c, func() {
+		before := c.active.app.client
+		c.reload()
+		if c.active.app.client != before || c.entries()[0].Changed || c.entries()[0].Labels["env"] != "changed" {
+			t.Error("labels changed connection")
+		}
+	})
+	contextInventoryFile(t, c, fmt.Sprintf("contexts:\n  - {name: a, url: %s, proxy: none}\n", b.URL))
+	controllerUI(c, func() {
+		before := c.active.app.client
+		c.reload()
+		if c.active.app.client != before || !c.entries()[0].Changed {
+			t.Error("configuration change not marked")
+		}
+		c.openPicker()
+		c.choose("named:a")
+	})
+	waitController(t, c, func() bool { return c.active.profile.Cluster.URL == b.URL })
+}
+func TestReloadRemovedActiveContext(t *testing.T) {
+	srv := clusterServer(t)
+	c, _ := startContextController(t, controllerInventory(t, srv.URL))
+	controllerUI(c, func() { c.choose("named:a") })
+	waitController(t, c, func() bool { return c.active != nil })
+	contextInventoryFile(t, c, "contexts: []\n")
+	controllerUI(c, func() {
+		c.active.app.editor.SetInitialText("GET /keep")
+		c.reload()
+		c.openPicker()
+		c.picker.filter.SetText("no match")
+		if len(c.picker.shown) != 1 || !c.picker.shown[0].Removed || !c.picker.shown[0].Active {
+			t.Error(c.picker.shown)
+		}
+		c.picker.handleKey(tcell.NewEventKey(tcell.KeyEnter, 0, 0))
+		if c.candidate != nil {
+			t.Error("reconnected removed entry")
+		}
+		if err := c.active.app.SaveBeforeSwitch(); err != nil {
+			t.Error(err)
+		}
+	})
+}
+func TestReloadCancelsCandidate(t *testing.T) {
+	entered := make(chan struct{})
+	cancelled := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { close(entered); <-r.Context().Done(); close(cancelled) }))
+	defer srv.Close()
+	c, _ := startContextController(t, controllerInventory(t, srv.URL))
+	controllerUI(c, func() { c.choose("named:a") })
+	<-entered
+	contextInventoryFile(t, c, "contexts: []\n")
+	controllerUI(c, func() {
+		c.reload()
+		if c.candidate != nil || c.active != nil {
+			t.Error("stale candidate retained")
+		}
+	})
+	select {
+	case <-cancelled:
+	case <-time.After(time.Second):
+		t.Fatal("candidate not cancelled")
+	}
+}

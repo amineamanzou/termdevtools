@@ -145,6 +145,12 @@ func (c *SessionController) entries() []contextEntry {
 		}
 		entries = append(entries, e)
 	}
+	if c.active != nil && c.active.profile.Definition != nil {
+		if _, ok := c.inventory.Lookup(c.active.profile.Name); !ok {
+			d := c.active.profile.Definition
+			entries = append(entries, contextEntry{Identity: d.ID(), Name: d.Name, URL: d.Cluster.URL, Labels: d.Labels, Active: true, Removed: true})
+		}
+	}
 	entries = append(entries, contextEntry{Identity: "action:legacy", Name: c.msgs.ContextLegacyLabel, URL: c.msgs.ContextLegacySecondary})
 	return entries
 }
@@ -399,6 +405,9 @@ func (c *SessionController) handleKey(event *tcell.EventKey) *tcell.EventKey {
 	case tcell.KeyCtrlC:
 		c.stopUI(false)
 		return nil
+	case tcell.KeyF7:
+		c.reload()
+		return nil
 	case tcell.KeyF6:
 		c.openPicker()
 		return nil
@@ -420,4 +429,55 @@ func (c *SessionController) handleKey(event *tcell.EventKey) *tcell.EventKey {
 		return result
 	}
 	return event
+}
+
+// reload updates declarations, never an active client. Invalid declarations
+// leave the last valid inventory and its candidate untouched.
+func (c *SessionController) reload() {
+	var problems []error
+	path := c.options.ContextsPath
+	if path == "" {
+		var err error
+		path, err = config.ContextsPath()
+		if err != nil {
+			problems = append(problems, err)
+		}
+	}
+	if path != "" {
+		next, err := config.LoadContexts(path)
+		if err != nil {
+			problems = append(problems, err)
+		} else {
+			c.cancelCandidate()
+			c.inventory = next
+			c.options.Credentials.Reconcile(next)
+			if c.credentialsOpen {
+				c.credentialsOpen = false
+				c.pages.HidePage("credentials")
+				c.pages.ShowPage("contexts")
+				c.pickerOpen = true
+				c.picker.FocusFilter()
+			}
+		}
+	}
+	if c.active != nil {
+		problems = append(problems, c.active.app.reloadSessionFiles()...)
+	}
+	c.picker.SetEntries(c.entries())
+	if len(problems) > 0 {
+		messages := make([]string, len(problems))
+		for n, err := range problems {
+			messages[n] = err.Error()
+		}
+		message := fmt.Sprintf(c.msgs.ContextReloadFailedFmt, strings.Join(messages, "\n"))
+		c.picker.SetMessage(message)
+		if c.active != nil {
+			c.active.app.status.SetError(message)
+		}
+	} else {
+		c.picker.SetMessage(c.msgs.ContextReloaded)
+		if c.active != nil {
+			c.active.app.status.SetInfo(c.msgs.ContextReloaded)
+		}
+	}
 }

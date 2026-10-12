@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 	"unicode"
@@ -885,20 +886,43 @@ func (a *App) resolveRequest(req *parser.Request) (path string, body []byte, err
 // takes effect without reconnecting. _cat columns are asked from the
 // cluster again too.
 func (a *App) reloadUserFiles() {
-	if a.variablesPath != "" {
-		vars, err := LoadVariablesFile(a.variablesPath)
-		if err != nil {
-			a.status.SetError(fmt.Sprintf(a.msgs.ErrLoadFailedFmt, a.variablesPath, err))
-			return
+	if problems := a.reloadSessionFiles(); len(problems) > 0 {
+		messages := make([]string, len(problems))
+		for n, err := range problems {
+			messages[n] = err.Error()
 		}
-		a.variables = vars
+		a.status.SetError(strings.Join(messages, " · "))
+		return
 	}
-
-	// A problem in a reference file is already in the status bar: leave it
-	// there rather than cover it with the summary.
-	if problems := a.loadReferenceData(); len(problems) == 0 {
-		a.status.SetInfo(fmt.Sprintf(a.msgs.InfoReloadedFmt, len(a.variables), len(a.recipes), len(a.endpoints)))
+	a.status.SetInfo(fmt.Sprintf(a.msgs.InfoReloadedFmt, len(a.variables), len(a.recipes), len(a.endpoints)))
+}
+func (a *App) reloadSessionFiles() []error {
+	var problems []error
+	if a.variablesPath != "" {
+		var vars map[string]string
+		var err error
+		if a.namedContext {
+			var data []byte
+			data, err = os.ReadFile(a.variablesPath)
+			if os.IsNotExist(err) {
+				vars = map[string]string{}
+				err = nil
+			} else if err == nil {
+				vars, err = parseContextVariables(data)
+			}
+		} else {
+			vars, err = LoadVariablesFile(a.variablesPath)
+		}
+		if err != nil {
+			problems = append(problems, fmt.Errorf(a.msgs.ErrLoadFailedFmt, a.variablesPath, err))
+		} else {
+			a.variables = vars
+		}
 	}
+	for _, problem := range a.loadReferenceData() {
+		problems = append(problems, errors.New(problem.String()))
+	}
+	return problems
 }
 
 // tryCompletion implements Tab in the left panel (SPEC.md §3.2, §4):
