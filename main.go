@@ -3,17 +3,16 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"runtime/debug"
-	"sync/atomic"
 	"syscall"
 	"time"
 
-	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 
 	"github.com/gnocent/termdevtools/config"
@@ -28,13 +27,18 @@ import (
 var version = "dev"
 
 func main() {
-	// Before anything is read or created: asking a binary what it is must
-	// work on a machine where it has never run.
-	for _, arg := range os.Args[1:] {
-		if arg == "--version" || arg == "-version" {
-			fmt.Println("termdevtools " + version)
-			return
-		}
+	options, err := parseCLI(os.Args[1:])
+	if errors.Is(err, flag.ErrHelp) {
+		fmt.Fprintln(os.Stdout, "Usage: termdevtools [--context NAME] [--export-defaults DIR] [--version]")
+		return
+	}
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(2)
+	}
+	if options.ShowVersion {
+		fmt.Println("termdevtools " + version)
+		return
 	}
 
 	cfg, err := config.Load()
@@ -45,10 +49,6 @@ func main() {
 		os.Exit(1)
 	}
 	msgs := i18n.For(cfg.Language)
-
-	exportDir := flag.String("export-defaults", "", msgs.UsageExportDefaults)
-	flag.Bool("version", false, msgs.UsageVersion) // handled above; declared for the usage text
-	flag.Parse()
 
 	exeDir, err := config.ExecutableDir()
 	if err != nil {
@@ -61,20 +61,20 @@ func main() {
 	userDir, _ := config.ConfigDir()
 	reference := refdata.Sources{TeamDir: exeDir, UserDir: userDir}
 
-	if *exportDir != "" {
+	if options.ExportDefaults != "" {
 		// Exported where reference files are read from, the built-in recipes
 		// would all come back as the user's own: frozen copies, hiding the
 		// corrections of every later version.
-		if reference.Reads(*exportDir) {
-			fmt.Fprintf(os.Stderr, msgs.ErrExportIntoSourceFmt+"\n", *exportDir)
+		if reference.Reads(options.ExportDefaults) {
+			fmt.Fprintf(os.Stderr, msgs.ErrExportIntoSourceFmt+"\n", options.ExportDefaults)
 			os.Exit(1)
 		}
-		written, err := refdata.ExportDefaults(*exportDir)
+		written, err := refdata.ExportDefaults(options.ExportDefaults)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, msgs.ErrExportDefaultsFmt+"\n", err)
 			os.Exit(1)
 		}
-		fmt.Printf(msgs.InfoExportedDefaultsFmt+"\n", len(written), *exportDir)
+		fmt.Printf(msgs.InfoExportedDefaultsFmt+"\n", len(written), options.ExportDefaults)
 		return
 	}
 
@@ -85,54 +85,34 @@ func main() {
 
 	tapp := tview.NewApplication()
 	defer recoverCrash(tapp, userDir, msgs)
-	pages := tview.NewPages()
-
-	// Ctrl+C must be able to quit right from the connection screen, before
-	// App (and its own, more complete SetInputCapture) even exists —
-	// otherwise no exit shortcut is active until the connection succeeds.
-	// App.Start() will replace this minimal handler with its own.
-	tapp.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-		if event.Key() == tcell.KeyCtrlC {
-			tapp.Stop()
-			return nil
-		}
-		return event
-	})
-
-	// Reference to the current App (nil until a connection has succeeded),
-	// so the signal handler below can save in-progress requests even on an
-	// external shutdown of the program.
-	var currentApp atomic.Pointer[ui.App]
-
-	connectPage := ui.BuildConnectPage(tapp, cfg, func(cr ui.ConnectResult) {
-		app := ui.NewApp(tapp, cr, cfg, paths)
-		currentApp.Store(app)
-		pages.AddAndSwitchToPage("main", app.Root(), true)
-		app.Start()
-	})
-	pages.AddPage("connect", connectPage, true, true)
-
-	// Best-effort save of the left panel in addition to explicit Ctrl+S
-	// (SPEC.md §3.2): Ctrl+C is already covered by App.handleGlobalKeys (it's
-	// just a control byte read by the terminal in raw mode, not an OS
-	// signal). SIGTERM/SIGHUP cover external shutdowns (kill, a dropped SSH
-	// session) — SIGKILL, as with any program, remains impossible to
-	// intercept.
+	contextsPath, err := config.ContextsPath()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	inventory, err := config.LoadContexts(contextsPath)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	controller := ui.NewSessionController(ui.ControllerOptions{App: tapp, Config: cfg, Inventory: inventory, ContextsPath: contextsPath, Paths: paths})
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGTERM, syscall.SIGHUP)
+	defer signal.Stop(sig)
+	signalDone := make(chan struct{})
+	defer close(signalDone)
 	go func() {
-		<-sig
-		if app := currentApp.Load(); app != nil {
-			app.SaveQueriesOnSignal()
+		select {
+		case <-sig:
+			controller.RequestStop(true)
+		case <-signalDone:
 		}
-		tapp.Stop()
 	}()
-
-	tapp.SetRoot(pages, true).EnableMouse(cfg.Mouse)
-	if err := tapp.Run(); err != nil {
+	if err := controller.Run(options.ContextName); err != nil {
 		fmt.Fprintf(os.Stderr, msgs.ErrFatalFmt+"\n", err)
 		os.Exit(1)
 	}
+
 }
 
 // buildPaths resolves the files the interface reads and writes (SPEC.md

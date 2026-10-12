@@ -19,10 +19,11 @@ type editorSnapshot struct {
 	Cursor int
 }
 type workspace struct {
-	Files           config.ContextFiles
-	Text, SavedText string
-	Cursor          int
-	Variables       map[string]string
+	Files             config.ContextFiles
+	Text, SavedText   string
+	Cursor            int
+	Variables         map[string]string
+	QueriesLoadFailed bool
 }
 
 var contextVariableName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
@@ -121,4 +122,39 @@ func (a *App) deliver(fn func()) {
 	} else {
 		a.tapp.QueueUpdateDraw(fn)
 	}
+}
+
+func prepareLegacyWorkspace(files config.ContextFiles, cheatsheet, starter string, snapshot *editorSnapshot) (workspace, error) {
+	work := workspace{Files: files, Text: starter, SavedText: starter}
+	data, err := os.ReadFile(files.Queries)
+	if err == nil {
+		work.Text = string(data)
+	} else if !os.IsNotExist(err) {
+		work.Text = ""
+		work.QueriesLoadFailed = true
+	} else if cheatsheet != "" {
+		data, e := os.ReadFile(cheatsheet)
+		if e == nil {
+			work.Text = string(data)
+		}
+	}
+	work.SavedText = work.Text
+	if snapshot != nil {
+		work.Text = snapshot.Text
+		work.Cursor = snapshot.Cursor
+	}
+	if work.Cursor < 0 {
+		work.Cursor = 0
+	}
+	if work.Cursor > len(work.Text) {
+		work.Cursor = len(work.Text)
+	}
+	for work.Cursor > 0 && work.Cursor < len(work.Text) && !utf8.RuneStart(work.Text[work.Cursor]) {
+		work.Cursor--
+	}
+	work.Variables, err = LoadVariablesFile(files.Variables)
+	if err != nil {
+		return workspace{}, fmt.Errorf("%s: %w", files.Variables, err)
+	}
+	return work, nil
 }

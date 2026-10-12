@@ -75,6 +75,10 @@ func (h *highlightForm) Draw(screen tcell.Screen) {
 // connectScreen implements the connection screen: list of known clusters
 // (§3.0) + new-connection/secrets form. See SPEC.md §3.0, §5.
 type connectScreen struct {
+	attemptHandler func(config.Cluster, connectSecrets)
+	cancelHandler  func()
+	quitHandler    func()
+
 	tapp *tview.Application
 	cfg  *config.Config
 	msgs *i18n.Strings
@@ -96,6 +100,9 @@ type connectScreen struct {
 // BuildConnectPage builds the connection screen. onConnected is called
 // (from the UI thread) once a connection has been successfully established.
 func BuildConnectPage(tapp *tview.Application, cfg *config.Config, onConnected func(ConnectResult)) tview.Primitive {
+	return newConnectScreen(tapp, cfg, onConnected).pages
+}
+func newConnectScreen(tapp *tview.Application, cfg *config.Config, onConnected func(ConnectResult)) *connectScreen {
 	cs := &connectScreen{
 		tapp:    tapp,
 		cfg:     cfg,
@@ -108,7 +115,7 @@ func BuildConnectPage(tapp *tview.Application, cfg *config.Config, onConnected f
 	cs.list.SetBorder(true).SetTitle(cs.msgs.ConnectListTitle)
 	cs.refreshList()
 	cs.pages.AddPage("list", cs.listLayout(), true, true)
-	return cs.pages
+	return cs
 }
 
 // connectMessageLines is the height of the message under the list and the
@@ -130,7 +137,13 @@ func (cs *connectScreen) refreshList() {
 		cs.list.AddItem(cl.URL, secondary, 0, func() { cs.openForm(&cl) })
 	}
 	cs.list.AddItem(cs.msgs.NewConnectionLabel, cs.msgs.NewConnectionSecondary, 0, func() { cs.openForm(nil) })
-	cs.list.AddItem(cs.msgs.QuitLabel, "", 0, func() { cs.tapp.Stop() })
+	cs.list.AddItem(cs.msgs.QuitLabel, "", 0, func() {
+		if cs.quitHandler != nil {
+			cs.quitHandler()
+		} else {
+			cs.tapp.Stop()
+		}
+	})
 }
 
 func (cs *connectScreen) openForm(existing *config.Cluster) {
@@ -182,6 +195,9 @@ func (cs *connectScreen) buildForm(existing *config.Cluster) *highlightForm {
 	// if any, and return to the list.
 	cancel := func() {
 		cs.attempt++
+		if cs.cancelHandler != nil {
+			cs.cancelHandler()
+		}
 		cs.pages.SwitchToPage("list")
 	}
 	form.SetCancelFunc(cancel)
@@ -478,6 +494,10 @@ func certEntriesIn(dir string) ([]certEntry, error) {
 }
 
 func (cs *connectScreen) attemptConnect(cl config.Cluster, secrets connectSecrets) {
+	if cs.attemptHandler != nil {
+		cs.attemptHandler(cl, secrets)
+		return
+	}
 	msgs := cs.msgs
 	if cl.URL == "" {
 		cs.setMessage(msgs.ErrURLRequired, "red")

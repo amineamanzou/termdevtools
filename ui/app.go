@@ -183,6 +183,10 @@ func newApp(tapp *tview.Application, cr ConnectResult, cfg *config.Config, paths
 		a.editor.SetInitialText(work.Text)
 		a.editor.SelectRange(work.Cursor, work.Cursor)
 		a.savedText = work.SavedText
+		a.queriesLoadFailed = work.QueriesLoadFailed
+		if work.QueriesLoadFailed {
+			a.status.SetError(a.msgs.ErrSavedRequestsUnread)
+		}
 		a.reference = paths.Reference
 		a.loadReferenceData()
 	} else {
@@ -1251,26 +1255,31 @@ func (a *App) SaveQueriesOnExit() error {
 	return a.editor.SaveToFile(a.queriesPath)
 }
 
-// signalSaveTimeout bounds how long SaveQueriesOnSignal waits for the
-// interface's goroutine before saving without it.
+// SaveQueriesOnSignal is retained for callers of the historical App wrapper.
+// The running program uses SessionController.RequestStop. A timed-out save
+// never reads widgets outside the UI loop.
 const signalSaveTimeout = 2 * time.Second
 
-// SaveQueriesOnSignal is SaveQueriesOnExit for a caller outside the
-// interface's goroutine — the handler of SIGTERM/SIGHUP in main.go. The
-// editor may only be read from that goroutine, so the save is handed to it;
-// if it doesn't get to it in time (stuck rendering something large), the
-// editor is read from here after all: a risk worth taking over losing the
-// session's requests. Best-effort and silent, the program is going away.
 func (a *App) SaveQueriesOnSignal() {
+	ctx, cancel := context.WithTimeout(a.operationContext(), signalSaveTimeout)
+	defer cancel()
 	done := make(chan struct{})
-	go func() {
-		a.tapp.QueueUpdate(func() { _ = a.SaveQueriesOnExit() })
+	save := func() {
+		if ctx.Err() == nil {
+			_ = a.SaveQueriesOnExit()
+		}
 		close(done)
-	}()
+	}
+	if a.lease != nil {
+		if !a.lease.dispatcher.Post(ctx, save) {
+			return
+		}
+	} else {
+		go a.tapp.QueueUpdate(save)
+	}
 	select {
 	case <-done:
-	case <-time.After(signalSaveTimeout):
-		_ = a.SaveQueriesOnExit()
+	case <-ctx.Done():
 	}
 }
 

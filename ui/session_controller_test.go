@@ -437,3 +437,25 @@ func TestReloadCancelsCandidate(t *testing.T) {
 		t.Fatal("candidate not cancelled")
 	}
 }
+
+func TestReloadReconnectKeepsCurrentEditor(t *testing.T) {
+	a, b := clusterServer(t), clusterServer(t)
+	c, _ := startContextController(t, controllerInventory(t, a.URL))
+	controllerUI(c, func() { c.choose("named:a") })
+	waitController(t, c, func() bool { return c.active != nil })
+	contextInventoryFile(t, c, fmt.Sprintf("contexts:\n  - {name: a, url: %s, proxy: none}\n", b.URL))
+	controllerUI(c, func() {
+		c.active.app.editor.SetInitialText("GET /unsaved")
+		c.active.app.editor.SelectRange(len("GET /unsaved"), len("GET /unsaved"))
+		c.reload()
+		c.openPicker()
+		c.choose("named:a")
+	})
+	waitController(t, c, func() bool { return c.active.profile.Cluster.URL == b.URL })
+	controllerUI(c, func() {
+		snap := c.active.app.Snapshot()
+		if snap.Text != "GET /unsaved" || snap.Cursor != len(snap.Text) {
+			t.Error("reconnect discarded live editor", snap)
+		}
+	})
+}
