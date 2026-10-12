@@ -247,9 +247,8 @@ func TestF9CopiesRequestAsCurl(t *testing.T) {
 	waitForDraw(t, screen)
 
 	got := string(screen.GetClipboardData())
-	// newTestApp's esclient.Params doesn't set Verify (defaults to false,
-	// see esclient.New), hence -k here — unrelated to what's under test.
-	want := "curl -X GET -k 'http://127.0.0.1:1/_cat/health?v'"
+	// This test client uses HTTP, so the command needs no TLS options.
+	want := "curl -X GET 'http://127.0.0.1:1/_cat/health?v'"
 	if got != want {
 		t.Errorf("expected the clipboard to contain %q, got %q", want, got)
 	}

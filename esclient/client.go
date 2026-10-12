@@ -100,8 +100,11 @@ func New(p Params) (*Client, error) {
 	p.BearerToken = normalizeBearerToken(p.BearerToken)
 
 	tlsConfig := &tls.Config{InsecureSkipVerify: !p.Verify}
+	usesTLS := strings.HasPrefix(strings.ToLower(p.URL), "https://")
 
-	if p.CAFile != "" {
+	// A CA is only used to verify an HTTPS server. Saved TLS settings must
+	// not block HTTP connections or connections with verification disabled.
+	if usesTLS && p.Verify && p.CAFile != "" {
 		pool, err := loadCAPool(p.CAFile)
 		if err != nil {
 			return nil, fmt.Errorf("loading CA %s: %w", p.CAFile, err)
@@ -109,7 +112,9 @@ func New(p Params) (*Client, error) {
 		tlsConfig.RootCAs = pool
 	}
 
-	if p.AuthType == AuthMTLS {
+	// Client authentication is still needed with HTTPS when server
+	// verification is disabled; these are separate TLS operations.
+	if usesTLS && p.AuthType == AuthMTLS {
 		cert, err := loadClientCertificate(p.ClientCert, p.ClientKey, p.KeyPassphrase)
 		if err != nil {
 			return nil, fmt.Errorf("loading client certificate: %w", err)

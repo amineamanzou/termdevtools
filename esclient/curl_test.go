@@ -117,19 +117,18 @@ func TestCurlCommandMTLSNoPassphraseFlag(t *testing.T) {
 	}
 }
 
-// TestCurlCommandTLSFlags checks --cacert and -k (insecure) are included
-// when configured.
+// TestCurlCommandTLSFlags checks the CA is included for verified HTTPS.
 func TestCurlCommandTLSFlags(t *testing.T) {
 	client := newTestClient("https://es.example.com:9200", Params{
-		CAFile: "/etc/pki/tls/certs/ca.pem", Verify: false,
+		CAFile: "/etc/pki/tls/certs/ca.pem", Verify: true,
 	})
 
 	got := client.CurlCommand("GET", "_cat/indices", nil)
 	if !strings.Contains(got, "--cacert '/etc/pki/tls/certs/ca.pem'") {
 		t.Errorf("expected --cacert with the configured CA path, got %q", got)
 	}
-	if !strings.Contains(got, " -k") {
-		t.Errorf("expected -k (insecure) since Verify is false, got %q", got)
+	if strings.Contains(got, " -k") {
+		t.Errorf("expected server verification to remain enabled, got %q", got)
 	}
 }
 
