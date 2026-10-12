@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"termdevtools/refdata"
+	"github.com/gnocent/termdevtools/refdata"
 )
 
 // TestStatusBarShowsDetectedTarget checks that the distribution and version

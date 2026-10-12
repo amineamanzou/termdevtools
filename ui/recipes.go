@@ -7,8 +7,8 @@ import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 
-	"termdevtools/i18n"
-	"termdevtools/refdata"
+	"github.com/gnocent/termdevtools/i18n"
+	"github.com/gnocent/termdevtools/refdata"
 )
 
 // recipesPageName is the tview.Pages key of the recipe palette, shown over

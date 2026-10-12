@@ -15,7 +15,7 @@ import (
 
 	"github.com/rivo/tview"
 
-	"termdevtools/i18n"
+	"github.com/gnocent/termdevtools/i18n"
 )
 
 // searchRegionID is the single tview region used to highlight/scroll to the

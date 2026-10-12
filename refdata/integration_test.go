@@ -28,9 +28,9 @@ import (
 	"testing"
 	"time"
 
-	"termdevtools/internal/testclusters"
-	"termdevtools/parser"
-	"termdevtools/refdata"
+	"github.com/gnocent/termdevtools/internal/testclusters"
+	"github.com/gnocent/termdevtools/parser"
+	"github.com/gnocent/termdevtools/refdata"
 )
 
 var httpClient = &http.Client{Timeout: 30 * time.Second}

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"termdevtools/internal/testclusters"
-	"termdevtools/refdata"
+	"github.com/gnocent/termdevtools/internal/testclusters"
+	"github.com/gnocent/termdevtools/refdata"
 )
 
 // observed is what one real cluster reports: its _cat commands ("GET _cat")

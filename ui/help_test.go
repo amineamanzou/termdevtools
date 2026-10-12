@@ -7,7 +7,7 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
-	"termdevtools/config"
+	"github.com/gnocent/termdevtools/config"
 )
 
 // screenText concatenates all the text content currently displayed by the

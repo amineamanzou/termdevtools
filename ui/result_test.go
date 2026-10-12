@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"termdevtools/i18n"
+	"github.com/gnocent/termdevtools/i18n"
 )
 
 // TestShowPrependsRequestReminder checks that the "# METHOD path" comment

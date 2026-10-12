@@ -87,6 +87,16 @@ The binary is static: it needs no system library and can be copied as-is onto an
 
 Requires [Go](https://go.dev/) 1.25 or later.
 
+Install directly with Go:
+
+```bash
+go install github.com/gnocent/termdevtools@latest
+```
+
+The binary is placed in `GOBIN`, or `$(go env GOPATH)/bin` when `GOBIN` is unset. Add that directory to your `PATH` if needed.
+
+To use the repository's install scripts:
+
 ```bash
 # Linux / macOS
 git clone https://github.com/gnocent/termdevtools.git

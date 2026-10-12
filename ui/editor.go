@@ -10,8 +10,8 @@ import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 
-	"termdevtools/config"
-	"termdevtools/i18n"
+	"github.com/gnocent/termdevtools/config"
+	"github.com/gnocent/termdevtools/i18n"
 )
 
 // initialGutterWidth is a starting guess for the line-number gutter's fixed

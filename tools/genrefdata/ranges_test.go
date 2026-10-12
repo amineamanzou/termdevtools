@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"termdevtools/refdata"
+	"github.com/gnocent/termdevtools/refdata"
 )
 
 func versions(list ...string) []refdata.Version {

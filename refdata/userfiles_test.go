@@ -8,7 +8,7 @@ import (
 	"testing"
 	"unicode/utf16"
 
-	"termdevtools/parser"
+	"github.com/gnocent/termdevtools/parser"
 )
 
 // Tests of what a team's or user's hand-written file may get wrong: every

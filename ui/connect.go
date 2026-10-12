@@ -13,10 +13,10 @@ import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 
-	"termdevtools/config"
-	"termdevtools/esclient"
-	"termdevtools/i18n"
-	"termdevtools/refdata"
+	"github.com/gnocent/termdevtools/config"
+	"github.com/gnocent/termdevtools/esclient"
+	"github.com/gnocent/termdevtools/i18n"
+	"github.com/gnocent/termdevtools/refdata"
 )
 
 // ConnectResult gathers what's needed to start the main application after a

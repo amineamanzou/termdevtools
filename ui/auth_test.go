@@ -12,8 +12,8 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
-	"termdevtools/config"
-	"termdevtools/i18n"
+	"github.com/gnocent/termdevtools/config"
+	"github.com/gnocent/termdevtools/i18n"
 )
 
 // A made-up API key of the shape Elasticsearch generates, and its "encoded"
