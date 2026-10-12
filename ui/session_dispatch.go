@@ -80,7 +80,8 @@ func (d *uiDispatcher) BeforeDraw(screen tcell.Screen) bool {
 	d.screen = screen
 	d.mu.Unlock()
 	d.once.Do(func() { close(d.ready) })
-	d.Drain()
+	// tview holds its application lock during draw. Jobs may change focus,
+	// so they must run from input capture, outside that lock.
 	return false
 }
 func (d *uiDispatcher) Drain() {
