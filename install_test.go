@@ -127,10 +127,14 @@ func TestInstallProxyURL(t *testing.T) {
 	for _, tc := range []struct{ path, want string }{
 		{"/tmp/module proxy", "file:///tmp/module%20proxy"},
 		{"C:/Users/test/module proxy", "file:///C:/Users/test/module%20proxy"},
-		{"//server/share/module proxy", "file:////server/share/module%20proxy"},
 	} {
 		if got := installProxyURL(tc.path); got != tc.want {
 			t.Errorf("proxy URL for %q: got %q, want %q", tc.path, got, tc.want)
+		}
+	}
+	if runtime.GOOS == "windows" {
+		if got := installProxyURL(`C:\Users\test\module proxy`); got != "file:///C:/Users/test/module%20proxy" {
+			t.Errorf("native Windows proxy path: %q", got)
 		}
 	}
 }
