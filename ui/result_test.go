@@ -1,14 +1,82 @@
 package ui
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"termdevtools/i18n"
 )
+
+func TestRepeatedExportsPreserveEveryResult(t *testing.T) {
+	dir := t.TempDir()
+	r := NewResultView(i18n.For(i18n.EN))
+	files := make(map[string]string)
+	for i := 0; i < 12; i++ {
+		r.Show("GET", fmt.Sprintf("/evidence/%d", i), nil, []byte(fmt.Sprintf("payload %d", i)))
+		path, err := r.Export(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, exists := files[path]; exists {
+			t.Fatalf("export reused an earlier file: %s", path)
+		}
+		files[path] = fmt.Sprintf("# GET /evidence/%d\npayload %d", i, i)
+	}
+	for path, want := range files {
+		got, err := os.ReadFile(path)
+		if err != nil || string(got) != want {
+			t.Errorf("export %s: got %q, err=%v, want %q", path, got, err, want)
+		}
+	}
+}
+
+func TestConcurrentExportsFromDifferentSessions(t *testing.T) {
+	dir := t.TempDir()
+	type export struct {
+		path, want string
+		err        error
+	}
+	results := make(chan export, 8)
+	start := make(chan struct{})
+	var workers sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		workers.Add(1)
+		go func(i int) {
+			defer workers.Done()
+			r := NewResultView(i18n.For(i18n.EN))
+			r.Show("GET", fmt.Sprintf("/session/%d", i), nil, []byte(fmt.Sprintf(`{"session":%d}`, i)))
+			<-start
+			path, err := r.Export(dir)
+			results <- export{path, fmt.Sprintf("# GET /session/%d\n{\n  \"session\": %d\n}", i, i), err}
+		}(i)
+	}
+	close(start)
+	workers.Wait()
+	close(results)
+	seen := make(map[string]bool)
+	for result := range results {
+		if result.err != nil {
+			t.Error(result.err)
+			continue
+		}
+		if seen[result.path] {
+			t.Errorf("sessions reused the same export: %s", result.path)
+		}
+		seen[result.path] = true
+		if filepath.Ext(result.path) != ".json" {
+			t.Errorf("JSON export lost its extension: %s", result.path)
+		}
+		got, err := os.ReadFile(result.path)
+		if err != nil || string(got) != result.want {
+			t.Errorf("export overwritten: got %q, err=%v, want %q", got, err, result.want)
+		}
+	}
+}
 
 // TestShowPrependsRequestReminder checks that the "# METHOD path" comment
 // line (a reminder of which request produced this result, no JSON payload)

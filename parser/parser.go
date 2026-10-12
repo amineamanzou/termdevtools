@@ -163,6 +163,15 @@ func RequestAtLine(text string, cursorLine int) (*Request, error) {
 			candidate = r
 		}
 	}
+	// Only blank/comment lines may fall back to a nearby request. An
+	// incomplete or unrecognized line must never execute a different one.
+	lines := strings.Split(text, "\n")
+	if cursorLine >= 0 && cursorLine < len(lines) {
+		line := strings.TrimSpace(lines[cursorLine])
+		if line != "" && !strings.HasPrefix(line, "#") {
+			return nil, ErrNoRequest
+		}
+	}
 	if candidate != nil {
 		return candidate, nil
 	}

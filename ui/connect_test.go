@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"encoding/pem"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -21,6 +22,10 @@ import (
 // BuildConnectPage) on a simulated screen — used to test the certificate
 // picker popup (openCertPicker) without a real terminal or cluster.
 func newTestConnectScreen(t *testing.T, cfg *config.Config) tcell.SimulationScreen {
+	return newTestConnectScreenWithCallback(t, cfg, func(ConnectResult) {})
+}
+
+func newTestConnectScreenWithCallback(t *testing.T, cfg *config.Config, onConnected func(ConnectResult)) tcell.SimulationScreen {
 	t.Helper()
 	screen := tcell.NewSimulationScreen("")
 	if err := screen.Init(); err != nil {
@@ -29,14 +34,69 @@ func newTestConnectScreen(t *testing.T, cfg *config.Config) tcell.SimulationScre
 	screen.SetSize(100, 30)
 
 	tapp := tview.NewApplication().SetScreen(screen)
-	root := BuildConnectPage(tapp, cfg, func(ConnectResult) {})
+	root := BuildConnectPage(tapp, cfg, onConnected)
 	tapp.SetRoot(root, true)
 
-	go func() { _ = tapp.Run() }()
-	t.Cleanup(tapp.Stop)
+	startTestApplication(t, tapp, screen)
 
 	waitForDraw(t, screen)
 	return screen
+}
+
+func TestNewConnectionCertificateDirectoriesAreOnlyPickerDefaults(t *testing.T) {
+	for _, secure := range []bool{false, true} {
+		name := "HTTP"
+		if secure {
+			name = "HTTPS"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(elasticsearchRoot)) })
+			var srv *httptest.Server
+			if secure {
+				srv = httptest.NewTLSServer(handler)
+			} else {
+				srv = httptest.NewServer(handler)
+			}
+			t.Cleanup(srv.Close)
+			dir := t.TempDir()
+			caFile := filepath.Join(dir, "ca.pem")
+			if secure {
+				if err := os.WriteFile(caFile, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: srv.Certificate().Raw}), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			cfg := &config.Config{Language: i18n.EN, DefaultTimeoutSeconds: 5, DefaultCADir: dir, DefaultClientCertDir: dir}
+			connected := make(chan ConnectResult, 1)
+			screen := newTestConnectScreenWithCallback(t, cfg, func(cr ConnectResult) { connected <- cr })
+			screen.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+			waitForDraw(t, screen)
+			injectText(screen, srv.URL)
+			screen.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
+			screen.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
+			if secure {
+				// Pick the CA from its configured directory and retain verification.
+				screen.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+				waitForDraw(t, screen)
+				screen.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+				screen.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
+				screen.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
+			}
+			screen.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+			select {
+			case cr := <-connected:
+				wantCA := ""
+				if secure {
+					wantCA = caFile
+				}
+				if cr.Cluster.TLS.CAFile != wantCA || cr.Cluster.TLS.ClientCert != "" || cr.Cluster.TLS.ClientKey != "" || !cr.Cluster.TLS.Verify {
+					t.Fatalf("unexpected selected TLS files: %+v", cr.Cluster.TLS)
+				}
+			case <-time.After(3 * time.Second):
+				t.Fatalf("connection failed with configured certificate directories: %s", flatScreen(screen))
+			}
+		})
+	}
 }
 
 // TestCertEntriesIn checks that certEntriesIn returns a directory's regular
@@ -267,8 +327,7 @@ func newTestCertPickerField(t *testing.T) (*connectScreen, *tview.InputField, tc
 	pages := tview.NewPages().AddPage("field", field, true, true)
 	tapp.SetRoot(pages, true)
 
-	go func() { _ = tapp.Run() }()
-	t.Cleanup(tapp.Stop)
+	startTestApplication(t, tapp, screen)
 	waitForDraw(t, screen)
 
 	cs := &connectScreen{tapp: tapp, cfg: &config.Config{Language: i18n.FR}, msgs: i18n.For(i18n.FR), pages: pages, message: tview.NewTextView()}
@@ -393,8 +452,7 @@ func connectFilling(t *testing.T, cluster config.Cluster, handler http.HandlerFu
 	results := make(chan ConnectResult, 1)
 	tapp := tview.NewApplication().SetScreen(screen)
 	tapp.SetRoot(BuildConnectPage(tapp, cfg, func(cr ConnectResult) { results <- cr }), true)
-	go func() { _ = tapp.Run() }()
-	t.Cleanup(tapp.Stop)
+	startTestApplication(t, tapp, screen)
 	waitForDraw(t, screen)
 
 	screen.InjectKey(tcell.KeyEnter, 0, tcell.ModNone) // the cluster, first in the list
