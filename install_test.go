@@ -85,13 +85,12 @@ func TestGoInstallVersionedModule(t *testing.T) {
 	if err != nil || zipErr != nil || closeErr != nil {
 		t.Fatalf("module archive: %v, %v, %v", err, zipErr, closeErr)
 	}
-	fileURL := func(path string) string { return (&url.URL{Scheme: "file", Path: filepath.ToSlash(path)}).String() }
 	bin := filepath.Join(root, "bin")
 	cmd := exec.CommandContext(ctx, goTool, "install", module+"@"+version)
 	cmd.Dir = root
 	cmd.Env = append(os.Environ(), "GOWORK=off", "GOTOOLCHAIN=local", "GOSUMDB=off", "GOPRIVATE=", "GONOPROXY=none",
 		"GOMODCACHE="+filepath.Join(root, "modules"), "GOBIN="+bin,
-		"GOPROXY="+fileURL(proxy)+","+fileURL(filepath.Join(strings.TrimSpace(string(cache)), "cache", "download")))
+		"GOPROXY="+installProxyURL(proxy)+","+installProxyURL(filepath.Join(strings.TrimSpace(string(cache)), "cache", "download")))
 	// Module cache files are read-only. Let Go remove them before TempDir's
 	// cleanup rather than leaving a cache behind or failing cleanup.
 	t.Cleanup(func() {
@@ -111,5 +110,27 @@ func TestGoInstallVersionedModule(t *testing.T) {
 	output, err := exec.CommandContext(ctx, filepath.Join(bin, name), "--version").CombinedOutput()
 	if err != nil || string(output) != "termdevtools dev\n" {
 		t.Fatalf("installed binary --version: %q (%v)", output, err)
+	}
+}
+
+func installProxyURL(path string) string {
+	path = filepath.ToSlash(path)
+	// A drive-letter path must start with '/' in a URL; otherwise net/url
+	// treats the drive as a host, which Go's file proxy rejects.
+	if len(path) >= 2 && path[1] == ':' {
+		path = "/" + path
+	}
+	return (&url.URL{Scheme: "file", Path: path}).String()
+}
+
+func TestInstallProxyURL(t *testing.T) {
+	for _, tc := range []struct{ path, want string }{
+		{"/tmp/module proxy", "file:///tmp/module%20proxy"},
+		{"C:/Users/test/module proxy", "file:///C:/Users/test/module%20proxy"},
+		{"//server/share/module proxy", "file:////server/share/module%20proxy"},
+	} {
+		if got := installProxyURL(tc.path); got != tc.want {
+			t.Errorf("proxy URL for %q: got %q, want %q", tc.path, got, tc.want)
+		}
 	}
 }
