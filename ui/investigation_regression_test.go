@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"termdevtools/parser"
+	"github.com/gnocent/termdevtools/parser"
 )
 
 func TestExecuteRejectsInvalidCursorLine(t *testing.T) {
