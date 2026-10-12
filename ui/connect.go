@@ -148,7 +148,8 @@ func (cs *connectScreen) buildForm(existing *config.Cluster) *highlightForm {
 	msgs := cs.msgs
 	cluster := config.Cluster{
 		AuthType: config.AuthNone,
-		TLS:      config.TLS{Verify: true, CAFile: cs.cfg.DefaultCADir, ClientCert: cs.cfg.DefaultClientCertDir, ClientKey: cs.cfg.DefaultClientCertDir},
+		// Default directories are picker starting points, not selected files.
+		TLS: config.TLS{Verify: true},
 	}
 	title := msgs.NewConnectionFormTitle
 	if existing != nil {

@@ -21,7 +21,7 @@ const hostile = "seen\x1b]52;c;aGFjaw==\x07 \x1b[8mhidden\x1b[0m \x9b31mcsi \x07
 // controlCells returns a description of every cell of the screen holding a
 // control character — what the terminal would be sent raw.
 func controlCells(screen tcell.SimulationScreen) []string {
-	cells, width, _ := screen.GetContents()
+	cells, width, _ := screenContents(screen)
 	var found []string
 	for i, cell := range cells {
 		for _, r := range cell.Runes {

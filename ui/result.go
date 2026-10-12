@@ -6,7 +6,6 @@ import (
 	"errors"
 	"net/http"
 	"os"
-	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -204,12 +203,19 @@ func (r *ResultView) Export(dir string) (string, error) {
 	if r.isJSON {
 		ext = ".json"
 	}
-	path := filepath.Join(dir, time.Now().Format("20060102-150405")+ext)
-
-	if err := os.WriteFile(path, []byte(r.plain), 0o600); err != nil {
+	// Reserve the name atomically: rapid exports and separate sessions must
+	// never overwrite an earlier result in this directory.
+	file, err := os.CreateTemp(dir, time.Now().Format("20060102-150405")+"-*"+ext)
+	if err != nil {
 		return "", err
 	}
-	return path, nil
+	_, writeErr := file.WriteString(r.plain)
+	closeErr := file.Close()
+	if err := errors.Join(writeErr, closeErr); err != nil {
+		_ = os.Remove(file.Name())
+		return "", err
+	}
+	return file.Name(), nil
 }
 
 // HighlightLine scrolls the panel to the given (0-indexed) line, used by
