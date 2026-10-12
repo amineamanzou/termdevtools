@@ -60,6 +60,9 @@ const (
 // App assembles the main layout (editor, result, status bar) and manages
 // focus as well as global keyboard shortcuts. See SPEC.md §3-4.
 type App struct {
+	lease         *sessionLease
+	savedText     string
+	namedContext  bool
 	tapp          *tview.Application
 	client        *esclient.Client
 	cfg           *config.Config
@@ -147,6 +150,9 @@ type App struct {
 // paths is resolved by the caller (main.go) — see SPEC.md §9.1 for the
 // detail of the locations.
 func NewApp(tapp *tview.Application, cr ConnectResult, cfg *config.Config, paths Paths) *App {
+	return newApp(tapp, cr, cfg, paths, nil)
+}
+func newApp(tapp *tview.Application, cr ConnectResult, cfg *config.Config, paths Paths, work *workspace) *App {
 	msgs := i18n.For(cfg.Language)
 	a := &App{
 		tapp:             tapp,
@@ -169,29 +175,42 @@ func NewApp(tapp *tview.Application, cr ConnectResult, cfg *config.Config, paths
 		a.status.SetWarning(cr.Warning)
 	}
 
-	queriesPath, err := config.QueriesPathForURL(cr.Cluster.URL)
-	if err != nil {
-		a.status.SetError(err.Error())
-	}
-	a.queriesPath = queriesPath
-
-	variablesPath, err := config.VariablesPathForURL(cr.Cluster.URL)
-	if err != nil {
-		a.status.SetError(err.Error())
-	}
-	a.variablesPath = variablesPath
-	if variablesPath != "" {
-		if vars, err := LoadVariablesFile(variablesPath); err != nil {
-			a.status.SetError(fmt.Sprintf(msgs.ErrLoadFailedFmt, variablesPath, err))
-		} else {
-			a.variables = vars
+	if work != nil {
+		a.queriesPath = work.Files.Queries
+		a.variablesPath = work.Files.Variables
+		a.variables = work.Variables
+		a.editor.SetInitialText(work.Text)
+		a.editor.SelectRange(work.Cursor, work.Cursor)
+		a.savedText = work.SavedText
+		a.reference = paths.Reference
+		a.loadReferenceData()
+	} else {
+		queriesPath, err := config.QueriesPathForURL(cr.Cluster.URL)
+		if err != nil {
+			a.status.SetError(err.Error())
 		}
+		a.queriesPath = queriesPath
+
+		variablesPath, err := config.VariablesPathForURL(cr.Cluster.URL)
+		if err != nil {
+			a.status.SetError(err.Error())
+		}
+		a.variablesPath = variablesPath
+		if variablesPath != "" {
+			if vars, err := LoadVariablesFile(variablesPath); err != nil {
+				a.status.SetError(fmt.Sprintf(msgs.ErrLoadFailedFmt, variablesPath, err))
+			} else {
+				a.variables = vars
+			}
+		}
+
+		a.reference = paths.Reference
+		a.loadReferenceData()
+
+		a.loadInitialQueries(paths.Cheatsheet, paths.Starter)
+
+		a.savedText = a.editor.Text()
 	}
-
-	a.reference = paths.Reference
-	a.loadReferenceData()
-
-	a.loadInitialQueries(paths.Cheatsheet, paths.Starter)
 
 	// Which panel has the focus is learned from the panels themselves rather
 	// than from the shortcuts that move it: with mouse support on, a click
@@ -741,10 +760,11 @@ func (a *App) executeCurrent() {
 	a.execution++
 	execution := a.execution
 
+	parent, client, timeout := a.operationContext(), a.client, a.timeout
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), a.timeout)
+		ctx, cancel := context.WithTimeout(parent, timeout)
 		defer cancel()
-		result, err := a.client.Execute(ctx, method, path, body)
+		result, err := client.Execute(ctx, method, path, body)
 		// Indenting and colorizing a large response takes time: done here,
 		// not in the interface's goroutine, which it would freeze.
 		var rendered renderedResult
@@ -752,7 +772,7 @@ func (a *App) executeCurrent() {
 			rendered = renderResult(method, path, result.Headers, result.Body)
 		}
 
-		a.tapp.QueueUpdateDraw(func() {
+		a.deliver(func() {
 			if execution != a.execution {
 				// Another request was sent since: its answer is the one
 				// expected, whichever arrives first.
@@ -984,11 +1004,12 @@ func (a *App) fetchCatColumns(command string) {
 	a.status.SetRunning()
 	applyResponse := a.catColumnsResponse(command)
 
+	parent, client := a.operationContext(), a.client
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), catHelpTimeout)
+		ctx, cancel := context.WithTimeout(parent, catHelpTimeout)
 		defer cancel()
-		result, err := a.client.Execute(ctx, "GET", "_cat/"+command+"?help", nil)
-		a.tapp.QueueUpdateDraw(func() { applyResponse(result, err) })
+		result, err := client.Execute(ctx, "GET", "_cat/"+command+"?help", nil)
+		a.deliver(func() { applyResponse(result, err) })
 	}()
 }
 
@@ -1181,6 +1202,7 @@ func (a *App) saveQueries() {
 	}
 	// The file now holds what the user chose to put in it.
 	a.queriesLoadFailed = false
+	a.savedText = a.editor.Text()
 	a.status.SetInfo(fmt.Sprintf(a.msgs.InfoSavedFmt, a.queriesPath))
 }
 
