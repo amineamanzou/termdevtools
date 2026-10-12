@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	"termdevtools/parser"
+	"github.com/gnocent/termdevtools/parser"
 )
 
 // Recipe is a ready-made request, or short sequence of requests, with the

@@ -1,4 +1,4 @@
-module termdevtools
+module github.com/gnocent/termdevtools
 
 go 1.25.12
 

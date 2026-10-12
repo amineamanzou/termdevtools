@@ -16,10 +16,10 @@ import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 
-	"termdevtools/config"
-	"termdevtools/i18n"
-	"termdevtools/refdata"
-	"termdevtools/ui"
+	"github.com/gnocent/termdevtools/config"
+	"github.com/gnocent/termdevtools/i18n"
+	"github.com/gnocent/termdevtools/refdata"
+	"github.com/gnocent/termdevtools/ui"
 )
 
 // version identifies the build. Release binaries are stamped by

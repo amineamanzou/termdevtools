@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"termdevtools/parser"
+	"github.com/gnocent/termdevtools/parser"
 )
 
 func titles(recipes []Recipe) []string {

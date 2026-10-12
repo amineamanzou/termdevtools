@@ -10,7 +10,7 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
-	"termdevtools/refdata"
+	"github.com/gnocent/termdevtools/refdata"
 )
 
 // catHelpServer is a test cluster answering "GET _cat/<command>?help" from

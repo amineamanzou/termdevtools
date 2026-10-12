@@ -6,7 +6,7 @@ import (
 
 	"github.com/rivo/tview"
 
-	"termdevtools/i18n"
+	"github.com/gnocent/termdevtools/i18n"
 )
 
 // StatusBar displays the current state (cluster, request in progress,

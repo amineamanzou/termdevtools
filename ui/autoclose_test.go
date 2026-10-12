@@ -5,7 +5,7 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
-	"termdevtools/i18n"
+	"github.com/gnocent/termdevtools/i18n"
 )
 
 // TestAutoCloseInsertsBracketPair checks the base case: typing an opener

@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"termdevtools/refdata"
+	"github.com/gnocent/termdevtools/refdata"
 )
 
 // EnvVar overrides the default list: "name=url,name=url...", each name being

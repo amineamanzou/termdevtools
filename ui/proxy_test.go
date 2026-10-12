@@ -12,9 +12,9 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
-	"termdevtools/config"
-	"termdevtools/esclient"
-	"termdevtools/i18n"
+	"github.com/gnocent/termdevtools/config"
+	"github.com/gnocent/termdevtools/esclient"
+	"github.com/gnocent/termdevtools/i18n"
 )
 
 // testForwardProxy is a plain HTTP proxy relaying each request to where it

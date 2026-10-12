@@ -13,8 +13,8 @@ import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 
-	"termdevtools/config"
-	"termdevtools/i18n"
+	"github.com/gnocent/termdevtools/config"
+	"github.com/gnocent/termdevtools/i18n"
 )
 
 // Tests of defects found by the code review of October 2026: each sets up

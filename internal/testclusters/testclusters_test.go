@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"testing"
 
-	"termdevtools/refdata"
+	"github.com/gnocent/termdevtools/refdata"
 )
 
 // TestDefaultsMatchScript keeps the default list in step with the containers
