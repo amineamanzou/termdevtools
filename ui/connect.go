@@ -14,6 +14,7 @@ import (
 	"github.com/rivo/tview"
 
 	"github.com/gnocent/termdevtools/config"
+	"github.com/gnocent/termdevtools/credentials"
 	"github.com/gnocent/termdevtools/esclient"
 	"github.com/gnocent/termdevtools/i18n"
 	"github.com/gnocent/termdevtools/refdata"
@@ -514,70 +515,31 @@ func (cs *connectScreen) attemptConnect(cl config.Cluster, secrets connectSecret
 	attempt := cs.attempt
 
 	timeout := time.Duration(cs.cfg.DefaultTimeoutSeconds) * time.Second
-	params := esclient.Params{
-		URL: cl.URL, AuthType: cl.AuthType,
-		Username: cl.Username, Password: secrets.password,
-		APIKeyID: cl.APIKeyID, APIKeySecret: secrets.apiKeySecret,
-		BearerToken: secrets.bearerToken,
-		Verify:      cl.TLS.Verify, CAFile: cl.TLS.CAFile,
-		ClientCert: cl.TLS.ClientCert, ClientKey: cl.TLS.ClientKey, KeyPassphrase: secrets.keyPassphrase,
-		Proxy:   cl.Proxy,
-		Timeout: timeout,
-	}
-
+	values := credentials.Values{Password: secrets.password, APIKeyID: cl.APIKeyID, APIKeySecret: secrets.apiKeySecret, BearerToken: secrets.bearerToken, KeyPassphrase: secrets.keyPassphrase}
 	go func() {
-		client, err := esclient.New(params)
-		var result *esclient.Result
-		// Only what was actually sent can have failed because of the proxy.
-		var sentThrough esclient.ProxyInfo
-		if err == nil {
-			sentThrough = proxy
-			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-			defer cancel()
-			result, err = client.Execute(ctx, "GET", "/", nil)
-		}
-
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		result, err := connectCluster(ctx, cl, values, timeout, msgs)
 		cs.tapp.QueueUpdateDraw(func() {
 			if attempt != cs.attempt || cs.connected {
-				return // superseded, or given up on: see connectScreen.attempt
-			}
-			if err != nil {
-				cs.setMessage(withProxyHint(fmt.Sprintf(msgs.ErrConnectFailedFmt, err), sentThrough, msgs), "red")
+				if result.Client != nil {
+					result.Client.CloseIdleConnections()
+				}
 				return
 			}
-			// A redirection included: it isn't followed (see esclient.New),
-			// and what answers isn't the cluster's root.
-			if result.StatusCode >= 300 {
-				message := fmt.Sprintf(msgs.ErrClusterHTTPFmt, result.StatusCode)
-				if location := result.Headers.Get("Location"); location != "" {
-					message += " → " + location
-				}
-				// Through a proxy, the answer may well be the proxy's own.
-				cs.setMessage(withProxyHint(message, sentThrough, msgs), "red")
+			if err != nil {
+				cs.setMessage(err.Error(), "red")
 				return
 			}
 			cs.connected = true
-
-			cs.cfg.Promote(cl)
+			cs.cfg.Promote(result.Cluster)
 			if err := cs.cfg.Save(); err != nil {
 				cs.setMessage(fmt.Sprintf(msgs.WarnConnectedSaveFailedFmt, err), "yellow")
 			}
-
-			target, warning := resolveTarget(result.Body, cl, msgs)
-			if proxy.URL != "" {
-				// Still worth knowing once connected: every request goes there.
-				notice := fmt.Sprintf(msgs.InfoProxyFmt, proxy.URL, proxyOrigin(proxy))
-				if warning != "" {
-					notice = warning + " · " + notice
-				}
-				warning = notice
-			}
-			cs.on(ConnectResult{
-				Client: client, Cluster: cl, DisplayUser: displayUserFor(cl, msgs),
-				Target: target, Warning: warning,
-			})
+			cs.on(result)
 		})
 	}()
+
 }
 
 // resolveTarget detects the cluster's distribution and version from the body

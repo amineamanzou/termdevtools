@@ -29,6 +29,8 @@ const (
 	AuthMTLS   = "mtls"
 )
 
+var ErrKeyPassphraseRequired = errors.New("private key passphrase is required")
+
 // Params gathers everything needed to establish a connection, including
 // secrets. A Params value must never be persisted as-is.
 type Params struct {
@@ -292,14 +294,17 @@ func loadClientCertificate(certFile, keyFile, passphrase string) (tls.Certificat
 	// PEM encryption ("BEGIN RSA PRIVATE KEY" with a DEK-Info header).
 	if block, _ := pem.Decode(keyPEM); block != nil && block.Type == "ENCRYPTED PRIVATE KEY" {
 		if passphrase == "" {
-			return tls.Certificate{}, fmt.Errorf("the private key %s is encrypted: its passphrase is required", keyFile)
+			return tls.Certificate{}, fmt.Errorf("the private key %s is encrypted: %w", keyFile, ErrKeyPassphraseRequired)
 		}
 		der, err := decryptPKCS8(block.Bytes, passphrase)
 		if err != nil {
 			return tls.Certificate{}, fmt.Errorf("decrypting private key %s: %w", keyFile, err)
 		}
 		keyPEM = pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der})
-	} else if passphrase != "" {
+	} else if block != nil && x509.IsEncryptedPEMBlock(block) {
+		if passphrase == "" {
+			return tls.Certificate{}, ErrKeyPassphraseRequired
+		}
 		keyPEM, err = decryptPEMKey(keyPEM, passphrase)
 		if err != nil {
 			return tls.Certificate{}, fmt.Errorf("decrypting private key: %w", err)
@@ -330,4 +335,11 @@ func decryptPEMKey(keyPEM []byte, passphrase string) ([]byte, error) {
 		return nil, err
 	}
 	return pem.EncodeToMemory(&pem.Block{Type: block.Type, Bytes: der}), nil
+}
+
+// CloseIdleConnections releases reusable connections after a session or failed candidate is abandoned.
+func (c *Client) CloseIdleConnections() {
+	if c != nil {
+		c.http.CloseIdleConnections()
+	}
 }
