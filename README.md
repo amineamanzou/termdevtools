@@ -4,6 +4,12 @@
 
 A terminal-mode simulator of Kibana's **DevTools** view, for querying an Elasticsearch or OpenSearch cluster directly from a terminal — Linux (including RHEL 8/9/10), Windows, or macOS — without a browser or a working Kibana. A single binary, with nothing else to install.
 
+## Named contexts in this fork
+
+The `feature/named-contexts-v1` branch adds a YAML inventory of named clusters, a searchable `F6` picker, and separate requests, cursors and variables for each name. The active name and engine remain visible while you work. `F7` reloads declarations without reconnecting; a failed switch keeps the current session.
+
+Build this branch from [Amine's fork](https://github.com/amineamanzou/termdevtools/tree/feature/named-contexts-v1), then start with `./termdevtools --context prod-eu`. See [Named contexts](docs/contexts.md) for installation, YAML examples, credentials and switching behavior. Upstream release binaries and `go install github.com/gnocent/termdevtools@latest` do not include this feature.
+
 > [!IMPORTANT]
 > **What's new in 0.7 (beta)**
 >
@@ -224,20 +230,21 @@ Values live in `~/.config/termdevtools/variables_<cluster>.txt` — one per clus
 | Switch focus left ↔ right panel | `Ctrl+←` / `Ctrl+→` [^focus] |
 | Quit (auto-saves the left panel) | `Ctrl+C` |
 | Search in requests / in the result | `Ctrl+F` (depending on focused panel) |
-| Resize the left/right split | `F5` / `F6` [^resize] |
+| Select a named context or historical connection | `F6` — see [Named contexts](docs/contexts.md) |
+| Resize the left/right split | `Ctrl+Shift+←/→`; `F5` shrinks the editor [^resize] |
 | Save (left) / export (right) | `Ctrl+S` (depending on focused panel) |
 | Open the recipe catalog | `F8` — type to filter, arrows to move, `Enter` to insert, `Esc` to close |
 | Complete an endpoint / a column | `Tab`, `F10`, or `Ctrl+Space` (left panel) [^tab] |
 | Reformat (indent) the JSON body under the cursor | `F4` (left panel) |
 | Copy the request under the cursor as a `curl` command | `F9` (left panel) — secrets redacted, see [Security](#security) |
-| Reload your hand-edited files (variables, recipes, endpoints) | `F7` — see [Recipes and reference data](#recipes-and-reference-data) |
+| Reload contexts and hand-edited files (variables, recipes, endpoints) | `F7` — see [Named contexts](docs/contexts.md) and [Recipes and reference data](#recipes-and-reference-data) |
 | Copy the result to the clipboard | `F2` |
 | Switch the interface language (fr/en) | `F3` |
 | Help | `F1` (`Esc` to close) |
 
 [^enter]: `Ctrl+Enter` also works on terminals that report it as distinct from plain `Enter` — many don't, which is why `Ctrl+E` is the primary, always-reliable shortcut.
 [^focus]: On macOS, `Option`/`Alt` also works instead of `Ctrl` — `Ctrl+←/→` is intercepted by the system by default (Mission Control desktop switching).
-[^resize]: `Ctrl+Shift+←/→` (`Option`/`Alt` included, on macOS) also works on terminals that report it distinctly from an unmodified arrow key — not all do, which is why `F5`/`F6` are the primary, always-reliable shortcuts.
+[^resize]: The terminal must report modified arrow keys distinctly; `Option`/`Alt` is also supported on macOS. In this fork, `F6` opens contexts instead of growing the editor.
 [^tab]: On some terminals (notably PuTTY) `Tab` is swallowed entirely — no key event reaches the app at all. `F10` is a guaranteed-reliable alternative. **PuTTY is generally discouraged**: no issues on native macOS/Windows 10+ terminals.
 
 ## Security

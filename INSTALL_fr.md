@@ -4,6 +4,16 @@
 
 Ce guide va du téléchargement à la première requête, puis détaille chaque réglage. Pour une vue d'ensemble du produit, voir le [README](README_fr.md).
 
+**Pour les contextes nommés de notre fork**, compiler la branche depuis les sources :
+
+```sh
+git clone --branch feature/named-contexts-v1 https://github.com/amineamanzou/termdevtools.git
+cd termdevtools
+go build -o termdevtools .
+```
+
+La configuration Go est décrite au §2.4 ; sous Windows, utiliser `-o termdevtools.exe`. Configurer `contexts.yaml`, puis lancer `./termdevtools --context NOM`, ou sélectionner un cluster avec `F6`. Le guide [Named contexts](docs/contexts.md) détaille le parcours. Les releases et la commande `go install` du projet d'origine présentées ci-dessous ne contiennent pas cette fonctionnalité.
+
 - [1. Ce qu'il faut](#1-ce-quil-faut)
 - [2. Installer le binaire](#2-installer-le-binaire)
 - [3. Première connexion](#3-première-connexion)
