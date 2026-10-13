@@ -97,7 +97,7 @@ Selecting the unchanged active context closes the picker without reconnecting. T
 
 Secrets are resolved only for the selected context. A nonempty environment variable wins; otherwise a previously entered and successfully validated secret is reused from process memory, or a masked prompt opens. The mTLS passphrase is requested only when the key requires it. An encoded API key includes its identifier; a raw secret needs an identifier too.
 
-Canceled or failed attempts are not cached. A 401/403 clears manually cached credentials for that attempt; there is no automatic retry. Changing connection settings or removing the context clears its cache at reload. Changing labels keeps it. Two names using the same URL have separate caches.
+Canceled or failed attempts are not cached. A 401/403 clears manually cached credentials for that attempt; there is no automatic retry. A wrong mTLS key passphrase also clears the manual cache, so the next explicit selection can prompt again after key rotation at the same path. Changing connection settings or removing the context clears its cache at reload. Changing labels keeps it. Two names using the same URL have separate caches.
 
 Resolved credentials are not written to configuration or state files, diagnostics, or the F9 curl command. Secrets you put in request text or response data follow the existing editor/export behavior.
 

@@ -31,6 +31,10 @@ const (
 
 var ErrKeyPassphraseRequired = errors.New("private key passphrase is required")
 
+// ErrInvalidKeyPassphrase identifies a key that cannot be decrypted with the
+// supplied passphrase. A corrupted encrypted key can produce the same error.
+var ErrInvalidKeyPassphrase = errWrongPassphrase
+
 // Params gathers everything needed to establish a connection, including
 // secrets. A Params value must never be persisted as-is.
 type Params struct {
@@ -332,7 +336,23 @@ func decryptPEMKey(keyPEM []byte, passphrase string) ([]byte, error) {
 	}
 	der, err := x509.DecryptPEMBlock(block, []byte(passphrase))
 	if err != nil {
+		if errors.Is(err, x509.IncorrectPasswordError) {
+			return nil, ErrInvalidKeyPassphrase
+		}
 		return nil, err
+	}
+	// Legacy PEM encryption has no authentication: a wrong password can
+	// occasionally yield valid padding but bytes that are not a private key.
+	switch block.Type {
+	case "RSA PRIVATE KEY":
+		_, err = x509.ParsePKCS1PrivateKey(der)
+	case "EC PRIVATE KEY":
+		_, err = x509.ParseECPrivateKey(der)
+	case "PRIVATE KEY":
+		_, err = x509.ParsePKCS8PrivateKey(der)
+	}
+	if err != nil {
+		return nil, ErrInvalidKeyPassphrase
 	}
 	return pem.EncodeToMemory(&pem.Block{Type: block.Type, Bytes: der}), nil
 }

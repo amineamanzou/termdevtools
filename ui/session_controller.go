@@ -170,6 +170,11 @@ func (c *SessionController) openPicker() {
 	}
 	if !c.pickerOpen {
 		c.previousFocus = c.options.App.GetFocus()
+		// Completion is dismissed by blur. It must not regain focus while
+		// invisible when the context picker is canceled.
+		if c.active != nil && c.previousFocus == c.active.app.completionList {
+			c.previousFocus = c.active.app.editor.Primitive()
+		}
 		if c.legacyOpen {
 			c.previousFocus = nil
 		}
@@ -385,7 +390,7 @@ func (c *SessionController) validateCandidate(candidate *sessionCandidate) {
 					return
 				}
 				var he *connectionHTTPError
-				if errors.As(err, &he) && (he.StatusCode == 401 || he.StatusCode == 403) {
+				if errors.Is(err, esclient.ErrInvalidKeyPassphrase) || (errors.As(err, &he) && (he.StatusCode == 401 || he.StatusCode == 403)) {
 					c.options.Credentials.Forget(profile.Identity)
 				}
 				c.cancelCandidate()
@@ -573,7 +578,8 @@ func (c *SessionController) openLegacy() {
 	c.legacy.attemptHandler = c.connectLegacy
 	c.legacy.cancelHandler = c.cancelCandidate
 	c.legacy.quitHandler = func() { c.stopUI(false) }
-	c.pages.AddPage("legacy", c.legacy.pages, true, true)
+	legacySurface := tview.NewFlex().AddItem(c.legacy.pages, 0, 1, true)
+	c.pages.AddPage("legacy", modalPage{legacySurface}, true, true)
 	c.options.App.SetFocus(c.legacy.pages)
 }
 func (c *SessionController) connectLegacy(cl config.Cluster, secrets connectSecrets) {

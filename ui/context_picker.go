@@ -47,6 +47,7 @@ func newContextPicker(tapp *tview.Application, msgs *i18n.Strings, selectEntry f
 	p.filter.SetChangedFunc(func(string) { p.refresh() })
 	p.filter.SetInputCapture(p.handleKey)
 	p.list.SetInputCapture(p.handleKey)
+	p.message.SetInputCapture(p.handleKey)
 	p.list.SetSelectedFunc(func(index int, _, _ string, _ rune) { p.selectAt(index) })
 	p.frame = tview.NewFlex().SetDirection(tview.FlexRow).AddItem(p.filter, 1, 0, true).AddItem(p.list, 0, 1, false).AddItem(p.message, 2, 0, false)
 	p.frame.SetBorder(true)

@@ -39,6 +39,10 @@ func TestClientKeyPassphraseRequired(t *testing.T) {
 		if !errors.Is(err, ErrKeyPassphraseRequired) {
 			t.Fatalf("missing typed passphrase error: %v", err)
 		}
+		_, err = loadClientCertificate(cert, path, "incorrect-passphrase")
+		if !errors.Is(err, ErrInvalidKeyPassphrase) {
+			t.Errorf("incorrect passphrase lacks typed error for %s: %v", path, err)
+		}
 	}
 	if _, err = loadClientCertificate(cert, plainPath, ""); err != nil {
 		t.Fatal(err)
