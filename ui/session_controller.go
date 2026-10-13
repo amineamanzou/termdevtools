@@ -183,7 +183,7 @@ func (c *SessionController) openPicker() {
 	c.pickerOpen = true
 	c.credentialsOpen = false
 	c.picker.SetEntries(c.entries())
-	c.pages.ShowPage("contexts")
+	c.pages.ShowPage("contexts").SendToFront("contexts")
 	c.picker.Open()
 }
 func (c *SessionController) closePicker() {

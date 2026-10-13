@@ -243,6 +243,24 @@ func TestPickerSuspendsExecution(t *testing.T) {
 	}
 }
 
+func TestPickerVisibleAboveActiveSession(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(elasticsearchRoot)) }))
+	defer srv.Close()
+	c, s := startContextController(t, controllerInventory(t, srv.URL))
+	controllerUI(c, func() { c.choose("named:a") })
+	waitController(t, c, func() bool { return c.active != nil })
+	s.InjectKey(tcell.KeyF6, 0, 0)
+	waitController(t, c, func() bool { return c.pickerOpen })
+	if text := screenText(s); !strings.Contains(text, "Filter:") {
+		t.Fatalf("picker hidden behind active session:\n%s", text)
+	}
+	s.InjectKey(tcell.KeyEsc, 0, 0)
+	waitController(t, c, func() bool { return !c.pickerOpen })
+	if text := screenText(s); strings.Contains(text, "Filter:") || !strings.Contains(text, "Requests") {
+		t.Fatalf("active session not restored:\n%s", text)
+	}
+}
+
 func TestSwitchDropsLateResults(t *testing.T) {
 	for _, kind := range []string{"GET", "CAT"} {
 		t.Run(kind, func(t *testing.T) {
