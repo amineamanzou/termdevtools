@@ -2,7 +2,7 @@
 
 # Changelog
 
-## Unreleased
+## 0.7.1 (beta) — October 2026
 
 ### Fixes
 

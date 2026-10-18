@@ -2,7 +2,7 @@
 
 # Journal des versions
 
-## Non publié
+## 0.7.1 (bêta) — octobre 2026
 
 ### Corrections
 

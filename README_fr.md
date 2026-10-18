@@ -111,7 +111,7 @@ Emplacement par défaut : `~/.local/share/termdevtools` sous Linux/macOS (lié v
 
 Pour compiler sans installer : `go build -o termdevtools .`
 
-Le script [`build-release.sh`](build-release.sh) produit dans `dist/` les trois binaires publiés et leur fichier `SHA256SUMS`, en y inscrivant la version (`./build-release.sh v0.7`, ou sans argument ce que `git describe` dit du dépôt) — celle que `termdevtools --version` affiche.
+Le script [`build-release.sh`](build-release.sh) produit dans `dist/` les trois binaires publiés et leur fichier `SHA256SUMS`, en y inscrivant la version (`./build-release.sh v0.7.1`, ou sans argument ce que `git describe` dit du dépôt) — celle que `termdevtools --version` affiche.
 
 ### Arborescence d'installation
 

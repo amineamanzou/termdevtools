@@ -111,7 +111,7 @@ Default install location: `~/.local/share/termdevtools` on Linux/macOS (symlinke
 
 To build without installing: `go build -o termdevtools .`
 
-The [`build-release.sh`](build-release.sh) script produces the three published binaries and their `SHA256SUMS` file in `dist/`, stamping them with the version (`./build-release.sh v0.7`, or without an argument what `git describe` says of the checkout) — the one `termdevtools --version` prints.
+The [`build-release.sh`](build-release.sh) script produces the three published binaries and their `SHA256SUMS` file in `dist/`, stamping them with the version (`./build-release.sh v0.7.1`, or without an argument what `git describe` says of the checkout) — the one `termdevtools --version` prints.
 
 ### Installation layout
 
