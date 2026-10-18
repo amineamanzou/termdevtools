@@ -405,8 +405,7 @@ func newConnectHarness(t *testing.T) *connectHarness {
 	results := make(chan ConnectResult, 4)
 	tapp := tview.NewApplication().SetScreen(screen)
 	tapp.SetRoot(BuildConnectPage(tapp, cfg, func(cr ConnectResult) { results <- cr }), true)
-	go func() { _ = tapp.Run() }()
-	t.Cleanup(tapp.Stop)
+	startTestApplication(t, tapp, screen)
 	waitForDraw(t, screen)
 
 	return &connectHarness{screen: screen, results: results, slowURL: slow.URL, fastURL: fast.URL, release: release}
@@ -511,8 +510,7 @@ func openClusterForm(t *testing.T, cluster config.Cluster) (tcell.SimulationScre
 	results := make(chan ConnectResult, 1)
 	tapp := tview.NewApplication().SetScreen(screen)
 	tapp.SetRoot(BuildConnectPage(tapp, cfg, func(cr ConnectResult) { results <- cr }), true)
-	go func() { _ = tapp.Run() }()
-	t.Cleanup(tapp.Stop)
+	startTestApplication(t, tapp, screen)
 	waitForDraw(t, screen)
 
 	screen.InjectKey(tcell.KeyEnter, 0, tcell.ModNone) // the cluster, first in the list

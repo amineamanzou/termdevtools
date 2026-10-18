@@ -1,6 +1,9 @@
 package parser
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 const sample = `# cheatsheet
 GET _cat/indices?v
@@ -59,5 +62,29 @@ func TestRequestAtLine(t *testing.T) {
 func TestValidateBodyInvalid(t *testing.T) {
 	if err := ValidateBody([]byte(`{"a":}`)); err == nil {
 		t.Error("expected error for invalid JSON")
+	}
+}
+
+func TestRequestAtLineRejectsInvalidCursorLine(t *testing.T) {
+	for _, line := range []string{"GET", "GET /_cluster/health extra", "HEAD /index", "notes", "GET /index # comment"} {
+		t.Run(line, func(t *testing.T) {
+			if req, err := RequestAtLine("DELETE /index\n\n"+line, 2); err == nil {
+				t.Fatalf("invalid cursor line selected another request: %+v", req)
+			}
+		})
+	}
+}
+
+func TestRequestAtLineKeepsBlankAndCommentFallback(t *testing.T) {
+	for _, text := range []string{"DELETE /index\n\n", "DELETE /index\n\n# notes", "# notes\n\nGET /_cluster/health"} {
+		line := 2
+		want := "DELETE"
+		if strings.HasPrefix(text, "#") {
+			line, want = 0, "GET"
+		}
+		req, err := RequestAtLine(text, line)
+		if err != nil || req.Method != want {
+			t.Fatalf("blank/comment fallback: req=%+v err=%v, want %s", req, err, want)
+		}
 	}
 }

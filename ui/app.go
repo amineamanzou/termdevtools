@@ -76,8 +76,9 @@ type App struct {
 	// offers: those the cluster itself reported ("?help", asked the first
 	// time a command's columns are completed), or the built-in fallback if
 	// it couldn't be asked. catPending marks requests still in flight.
-	catLive    map[string][]string
-	catPending map[string]bool
+	catLive       map[string][]string
+	catPending    map[string]bool
+	catGeneration uint64
 	// recipes are the ready-made requests that apply to the connected
 	// cluster, in the order the palette (F8) lists them.
 	recipes []refdata.Recipe
@@ -304,6 +305,7 @@ func (a *App) loadReferenceData() []refdata.Problem {
 	// What the cluster reported is asked again after a reload.
 	a.catLive = make(map[string][]string)
 	a.catPending = make(map[string]bool)
+	a.catGeneration++
 	a.recipes = catalog.Recipes(a.target)
 
 	if n := len(catalog.Problems); n > 0 {
@@ -931,44 +933,54 @@ func (a *App) fetchCatColumns(command string) {
 	}
 	a.catPending[command] = true
 	a.status.SetRunning()
-	running := a.status.Version()
-	text, cursor := a.editor.Text(), a.editor.CursorOffset()
+	applyResponse := a.catColumnsResponse(command)
 
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), catHelpTimeout)
 		defer cancel()
 		result, err := a.client.Execute(ctx, "GET", "_cat/"+command+"?help", nil)
-
-		a.tapp.QueueUpdateDraw(func() {
-			delete(a.catPending, command)
-
-			var columns []string
-			if err == nil && result.StatusCode == 200 {
-				columns = refdata.ParseCatHelp(result.Body)
-			}
-			fromCluster := len(columns) > 0
-			if !fromCluster {
-				columns = a.catColumns[command]
-			}
-			a.catLive[command] = columns
-
-			if !a.editor.Primitive().HasFocus() || a.editor.Text() != text || a.editor.CursorOffset() != cursor {
-				// The user moved on while waiting: nothing to complete
-				// anymore, but the columns are there for next time. The
-				// status line is only cleared if it still says "running"
-				// for this request — not if it now shows, say, the result
-				// of a request executed in the meantime.
-				if a.status.Version() == running {
-					a.status.SetIdle()
-				}
-				return
-			}
-			a.tryCompletion()
-			if !fromCluster {
-				a.status.SetWarning(a.msgs.WarnCatColumnsBuiltIn)
-			}
-		})
+		a.tapp.QueueUpdateDraw(func() { applyResponse(result, err) })
 	}()
+}
+
+// catColumnsResponse captures the completion being resumed. Both capture and
+// application run on the UI goroutine; only the HTTP request runs outside it.
+func (a *App) catColumnsResponse(command string) func(*esclient.Result, error) {
+	generation := a.catGeneration
+	running := a.status.Version()
+	text, cursor := a.editor.Text(), a.editor.CursorOffset()
+	return func(result *esclient.Result, err error) {
+		if generation != a.catGeneration {
+			return // Reloaded since dispatch: leave the new cache and requests alone.
+		}
+		delete(a.catPending, command)
+
+		var columns []string
+		if err == nil && result.StatusCode == 200 {
+			columns = refdata.ParseCatHelp(result.Body)
+		}
+		fromCluster := len(columns) > 0
+		if !fromCluster {
+			columns = a.catColumns[command]
+		}
+		a.catLive[command] = columns
+
+		if !a.editor.Primitive().HasFocus() || a.editor.Text() != text || a.editor.CursorOffset() != cursor {
+			// The user moved on while waiting: nothing to complete
+			// anymore, but the columns are there for next time. The
+			// status line is only cleared if it still says "running"
+			// for this request — not if it now shows, say, the result
+			// of a request executed in the meantime.
+			if a.status.Version() == running {
+				a.status.SetIdle()
+			}
+			return
+		}
+		a.tryCompletion()
+		if !fromCluster {
+			a.status.SetWarning(a.msgs.WarnCatColumnsBuiltIn)
+		}
+	}
 }
 
 // offerCompletions applies the result of a completion search, regardless of

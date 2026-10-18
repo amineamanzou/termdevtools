@@ -140,23 +140,7 @@ func newTestAppWith(t *testing.T, opts testAppOptions) (*App, tcell.SimulationSc
 	tapp.SetRoot(app.Root(), true)
 	app.Start()
 
-	// In front of the application's own key handling, installed by Start:
-	// what lets waitForDraw know where the application is at.
-	synchro := &testSync{tapp: tapp, reached: make(chan struct{}, 64)}
-	tapp.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-		if event.Key() == syncKey {
-			synchro.reached <- struct{}{}
-			return nil
-		}
-		return app.handleGlobalKeys(event)
-	})
-	testSyncs.Store(screen, synchro)
-	t.Cleanup(func() { testSyncs.Delete(screen) })
-
-	go func() {
-		_ = tapp.Run()
-	}()
-	t.Cleanup(tapp.Stop)
+	startTestApplication(t, tapp, screen)
 
 	waitForDraw(t, screen)
 	return app, screen
@@ -184,6 +168,7 @@ const syncKey = tcell.KeyF64
 type testSync struct {
 	tapp    *tview.Application
 	reached chan struct{}
+	done    chan struct{}
 }
 
 // testSyncs holds the testSync of every running test application, by screen.

@@ -14,7 +14,7 @@ import (
 // simulated screen, with no formatting — useful to check that given content
 // is actually rendered on screen.
 func screenText(screen tcell.SimulationScreen) string {
-	cells, w, h := screen.GetContents()
+	cells, w, h := screenContents(screen)
 	var b strings.Builder
 	for y := 0; y < h; y++ {
 		for x := 0; x < w; x++ {
