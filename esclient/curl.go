@@ -21,6 +21,7 @@ func (c *Client) CurlCommand(method, path string, body []byte) string {
 
 	var b strings.Builder
 	b.WriteString("curl -X " + strings.ToUpper(method))
+	usesTLS := strings.HasPrefix(strings.ToLower(c.baseURL), "https://")
 
 	switch c.params.AuthType {
 	case AuthBasic:
@@ -30,21 +31,21 @@ func (c *Client) CurlCommand(method, path string, body []byte) string {
 	case AuthBearer:
 		b.WriteString(" -H " + shellQuote("Authorization: Bearer <token>"))
 	case AuthMTLS:
-		if c.params.ClientCert != "" {
+		if usesTLS && c.params.ClientCert != "" {
 			b.WriteString(" --cert " + shellQuote(c.params.ClientCert))
 		}
-		if c.params.ClientKey != "" {
+		if usesTLS && c.params.ClientKey != "" {
 			b.WriteString(" --key " + shellQuote(c.params.ClientKey))
 		}
-		if c.params.KeyPassphrase != "" {
+		if usesTLS && c.params.KeyPassphrase != "" {
 			b.WriteString(" --pass " + shellQuote("<key_passphrase>"))
 		}
 	}
 
-	if c.params.CAFile != "" {
+	if usesTLS && c.params.Verify && c.params.CAFile != "" {
 		b.WriteString(" --cacert " + shellQuote(c.params.CAFile))
 	}
-	if !c.params.Verify {
+	if usesTLS && !c.params.Verify {
 		b.WriteString(" -k")
 	}
 
