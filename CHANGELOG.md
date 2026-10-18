@@ -2,6 +2,18 @@
 
 # Changelog
 
+## Unreleased
+
+### Fixes
+
+- **An incomplete request line no longer runs the request above it**: `Ctrl+E` on a line such as `GET` still being typed sent the closest request above, a `DELETE` for instance. Nothing is sent now, and the status bar says no request was found. A blank or comment line between two requests still runs the one above.
+- **A new connection no longer fails on Linux because of the certificate directories**: `default_ca_dir` and `default_client_cert_dir` filled the certificate fields of a new connection with a directory, which was then loaded as a file — even in http, where those fields are hidden. They now only set where the certificate picker starts.
+- **TLS files are only read when they are used**: the CA file only for https with verification on, the client certificate only for https. A path saved for a cluster in http, or with verification off, no longer blocks the connection. The command of `F9` follows the same rule.
+- **Two exports in the same second no longer overwrite each other**: the file name now ends with a random number (`YYYYMMDD-HHMMSS-<number>.json`).
+- **`F7` while the `_cat` columns are being fetched**: an answer from before the reload no longer replaces the new columns.
+
+Thanks to @fbaligand for the report (#2) and to @amineamanzou for the fixes (#5, #7).
+
 ## 0.7 (beta) — October 2026
 
 **In one sentence**: TermDevTools reaches a cluster through a proxy, takes API keys the way Kibana gives them as well as Bearer tokens, and no longer writes anything next to its binary.

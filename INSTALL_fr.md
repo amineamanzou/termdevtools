@@ -187,7 +187,7 @@ Si la variable `XDG_CONFIG_HOME` est définie, le dossier est `$XDG_CONFIG_HOME/
 | `default_timeout_seconds` | `120` | Délai maximal d'une requête, en secondes. |
 | `language` | `en` | Langue de l'interface : `en` ou `fr`. `F3` la change et met cette ligne à jour. |
 | `mouse` | `false` | Active la souris (clic pour changer de panneau, choisir dans une liste). Désactivée, la sélection et le copier-coller du terminal restent disponibles. |
-| `default_ca_dir` | `/etc/pki/tls/certs` sous Linux, vide ailleurs | Dossier proposé pour le champ *Fichier CA* et parcouru par son sélecteur. |
+| `default_ca_dir` | `/etc/pki/tls/certs` sous Linux, vide ailleurs | Dossier d'où part le sélecteur du champ *Fichier CA* (`Entrée` dessus). Le champ lui-même reste vide tant qu'aucun fichier n'est choisi. |
 | `default_client_cert_dir` | idem | Même chose pour le certificat et la clé du client. |
 | `clusters` | vide | L'historique des connexions, le plus récent en premier. Tenu à jour par le programme. |
 

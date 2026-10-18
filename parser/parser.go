@@ -144,9 +144,10 @@ func parseRequestLine(line string) (method, path string, ok bool) {
 }
 
 // RequestAtLine returns the request cursorLine (0-indexed line index)
-// belongs to. If the cursor doesn't fall inside any request (blank/comment
-// line between two requests), the closest request preceding the cursor is
-// used; failing that, the first one in the buffer.
+// belongs to. If the cursor is on a blank/comment line between two
+// requests, the closest request preceding the cursor is used; failing that,
+// the first one in the buffer. Any other line outside a request (a request
+// line still being typed, say) gives ErrNoRequest.
 func RequestAtLine(text string, cursorLine int) (*Request, error) {
 	requests := ParseAll(text)
 	if len(requests) == 0 {

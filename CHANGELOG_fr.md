@@ -2,6 +2,18 @@
 
 # Journal des versions
 
+## Non publié
+
+### Corrections
+
+- **Une ligne de requête incomplète n'exécute plus la requête du dessus** : `Ctrl+E` sur une ligne comme `GET`, en cours de saisie, envoyait la requête la plus proche au-dessus, un `DELETE` par exemple. Rien n'est envoyé désormais, et la barre de statut indique qu'aucune requête n'a été trouvée. Une ligne vide ou de commentaire entre deux requêtes exécute toujours celle du dessus.
+- **Une nouvelle connexion n'échoue plus sous Linux à cause des dossiers de certificats** : `default_ca_dir` et `default_client_cert_dir` remplissaient les champs de certificat d'une nouvelle connexion avec un dossier, ensuite chargé comme un fichier — même en http, où ces champs sont masqués. Ils ne fixent plus que le point de départ du sélecteur de certificat.
+- **Les fichiers TLS ne sont lus que s'ils servent** : le fichier CA seulement en https avec vérification, le certificat client seulement en https. Un chemin enregistré pour un cluster en http, ou sans vérification, ne bloque plus la connexion. La commande de `F9` suit la même règle.
+- **Deux exports dans la même seconde ne s'écrasent plus** : le nom du fichier se termine désormais par un nombre aléatoire (`AAAAMMJJ-HHMMSS-<nombre>.json`).
+- **`F7` pendant la récupération des colonnes `_cat`** : une réponse antérieure au rechargement ne remplace plus les nouvelles colonnes.
+
+Merci à @fbaligand pour le signalement (#2) et à @amineamanzou pour les correctifs (#5, #7).
+
 ## 0.7 (bêta) — octobre 2026
 
 **En une phrase** : TermDevTools atteint un cluster à travers un proxy, accepte les clés d'API telles que Kibana les donne ainsi que les jetons Bearer, et n'écrit plus rien à côté de son binaire.

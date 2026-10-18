@@ -35,9 +35,10 @@ const (
 // defaultCertDir pre-fills both DefaultCADir and DefaultClientCertDir when
 // config.yaml doesn't set them: the standard system-wide TLS certificate
 // directory on RHEL/CentOS (this project's primary deployment target, see
-// SPEC.md §1), so the connection form's CA/client-cert/client-key fields
-// and the certificate picker popup (ui/connect.go) have something sensible
-// to work with out of the box.
+// SPEC.md §1), so the certificate picker popup (ui/connect.go) has
+// something sensible to browse out of the box. Only the picker: the form's
+// CA/client-cert/client-key fields start empty, since a directory isn't a
+// certificate file and loading one as such failed every new connection.
 //
 // Empty on any OS other than Linux: assuming this same RHEL-specific path
 // also exists on Windows or macOS was a real bug — it doesn't, and pointing
@@ -403,15 +404,15 @@ language: en
 mouse: false
 `},
 	{"default_ca_dir", fmt.Sprintf(`
-# Directory pre-filled in the CA field when entering a new connection
-# (§3.0), and browsed by the certificate picker (Enter on the field) to list
-# the files to choose from.
+# Directory browsed by the certificate picker of the CA field (Enter on the
+# field when entering a new connection, §3.0) to list the files to choose
+# from. The field itself stays empty until a file is chosen.
 default_ca_dir: %s
 `, defaultCertDir)},
 	{"default_client_cert_dir", fmt.Sprintf(`
-# Directory pre-filled in the client certificate fields (mTLS) when entering
-# a new connection (§3.0), used like the CA directory above. The same by
-# default: change it if your client certificates live elsewhere.
+# The same for the client certificate and key fields (mTLS). The same
+# directory by default: change it if your client certificates live
+# elsewhere.
 default_client_cert_dir: %s
 `, defaultCertDir)},
 	{"clusters", `
