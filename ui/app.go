@@ -213,9 +213,15 @@ func NewApp(tapp *tview.Application, cr ConnectResult, cfg *config.Config, paths
 	})
 	a.completionList.SetMouseCapture(func(action tview.MouseAction, event *tcell.EventMouse) (tview.MouseAction, *tcell.EventMouse) {
 		if action == tview.MouseLeftClick && a.completionNoMatch && a.completionList.InRect(event.Position()) {
-			// List refocuses itself before selection, triggering our blur
-			// handler. Reject the click first to keep the failed search editable.
-			return tview.MouseConsumed, nil
+			// Only an item is an explicit choice. A border/empty-area click
+			// must not focus the list after its blur handler has hidden it.
+			x, y := event.Position()
+			left, top, width, height := a.completionList.GetInnerRect()
+			offset, _ := a.completionList.GetOffset()
+			if x < left || x >= left+width || y < top || y >= top+height || y-top+offset >= a.completionList.GetItemCount() {
+				return tview.MouseConsumed, nil
+			}
+			a.resetFailedCompletionSearch()
 		}
 		return action, event
 	})
@@ -225,6 +231,7 @@ func NewApp(tapp *tview.Application, cr ConnectResult, cfg *config.Config, paths
 			a.closeCompletion()
 			return nil
 		case tcell.KeyTab:
+			a.resetFailedCompletionSearch()
 			// One more Tab cycles through the suggestions, like repeated
 			// Tabs in classic shell completion.
 			next := a.completionList.GetCurrentItem() + 1
@@ -233,6 +240,8 @@ func NewApp(tapp *tview.Application, cr ConnectResult, cfg *config.Config, paths
 			}
 			a.completionList.SetCurrentItem(next)
 			return nil
+		case tcell.KeyUp, tcell.KeyDown, tcell.KeyLeft, tcell.KeyRight, tcell.KeyBacktab, tcell.KeyPgUp, tcell.KeyPgDn, tcell.KeyHome, tcell.KeyEnd:
+			a.resetFailedCompletionSearch()
 		case tcell.KeyRune:
 			a.typeaheadCompletion(event.Rune())
 			return nil
@@ -301,7 +310,17 @@ func NewApp(tapp *tview.Application, cr ConnectResult, cfg *config.Config, paths
 // count of the others), for callers that want to say more.
 func (a *App) loadReferenceData() []refdata.Problem {
 	catalog := refdata.Load(a.reference)
-	a.endpoints = catalog.Endpoints(a.target)
+	// Normalize once so custom /_cat commands are recognized for live
+	// column completion too, and duplicate slash spellings collapse.
+	a.endpoints = nil
+	seen := make(map[string]bool)
+	for _, endpoint := range catalog.Endpoints(a.target) {
+		endpoint = strings.TrimPrefix(endpoint, "/")
+		if !seen[endpoint] {
+			a.endpoints = append(a.endpoints, endpoint)
+			seen[endpoint] = true
+		}
+	}
 	a.catColumns = catalog.CatColumns(a.target)
 	// A _cat endpoint offered by completion is a known command even when
 	// the built-in table has no column for it (one the user added, or a
@@ -927,18 +946,7 @@ func (a *App) tryCompletion() bool {
 	// included), not just the text preceding it — no need to adjust the
 	// bounds for this.
 	endpointPrefix := strings.TrimSuffix(prefix, "/")
-	// Team/user files may spell an endpoint with the slash too. Normalize
-	// copies, and avoid offering the same endpoint twice in different forms.
-	endpoints := make([]string, 0, len(a.endpoints))
-	seen := make(map[string]bool)
-	for _, endpoint := range a.endpoints {
-		endpoint = strings.TrimPrefix(endpoint, "/")
-		if !seen[endpoint] {
-			endpoints = append(endpoints, endpoint)
-			seen[endpoint] = true
-		}
-	}
-	matches := matchPrefix(endpointPrefix, endpoints)
+	matches := matchPrefix(endpointPrefix, a.endpoints)
 	if leadingSlash {
 		for i := range matches {
 			matches[i] = "/" + matches[i]
@@ -1036,11 +1044,11 @@ func (a *App) offerCompletions(start, end int, matches []string) {
 		// no completion) before showing the list — otherwise it stays
 		// displayed, in red, behind/around a completion that did work.
 		a.status.SetIdle()
-		a.openCompletion(start, end, matches)
+		a.openCompletion(start, end, a.editor.CursorOffset(), matches)
 	}
 }
 
-func (a *App) openCompletion(start, end int, matches []string) {
+func (a *App) openCompletion(start, end, prefixEnd int, matches []string) {
 	a.completionStart, a.completionEnd = start, end
 	// The already-typed text that produced matches (e.g. "_cat/s") — every
 	// item in the list starts with it, so further typeahead keystrokes are
@@ -1048,7 +1056,7 @@ func (a *App) openCompletion(start, end int, matches []string) {
 	// bare keystrokes alone (see applyCompletionTypeahead).
 	// The replacement may also include query text after the cursor; that
 	// suffix is not part of the prefix used by typeahead.
-	a.completionTypedPrefix = a.editor.Text()[start:a.editor.CursorOffset()]
+	a.completionTypedPrefix = a.editor.Text()[start:prefixEnd]
 	a.completionTypeahead = ""
 	a.completionNoMatch = false
 	a.updateCompletionTitle()
@@ -1099,6 +1107,15 @@ func (a *App) typeaheadCompletionBackspace() {
 	a.applyCompletionTypeahead()
 }
 
+// resetFailedCompletionSearch makes deliberate navigation override a failed
+// typeahead search. applyCompletionTypeahead clears only this search's error.
+func (a *App) resetFailedCompletionSearch() {
+	if a.completionNoMatch {
+		a.completionTypeahead = ""
+		a.applyCompletionTypeahead()
+	}
+}
+
 // applyCompletionTypeahead selects the first item in the completion list
 // whose text starts with completionTypedPrefix+completionTypeahead
 // (case-insensitive) — every item already starts with completionTypedPrefix
@@ -1128,8 +1145,8 @@ func (a *App) applyCompletionTypeahead() {
 			return
 		}
 	}
-	// Leave the list open for Backspace/Escape, but do not let Enter or a
-	// mouse click apply the selection left over from a previous search.
+	// Leave the list open for correction, cancellation or an explicit
+	// choice. Enter alone must not apply a stale selection.
 	a.completionNoMatch = true
 	a.status.SetError(a.msgs.ErrNoCompletion)
 	a.completionErrorStatus = a.status.Version()
