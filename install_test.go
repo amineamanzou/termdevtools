@@ -19,6 +19,9 @@ import (
 // the actual go install fail. Dependencies come from Go's existing cache;
 // the test does not publish anything or contact GitHub.
 func TestGoInstallVersionedModule(t *testing.T) {
+	if testing.Short() {
+		t.Skip("installs the complete application as a versioned module")
+	}
 	const module = "github.com/gnocent/termdevtools"
 	const version = "v0.0.0-installtest"
 	goTool := filepath.Join(runtime.GOROOT(), "bin", "go")
@@ -42,6 +45,7 @@ func TestGoInstallVersionedModule(t *testing.T) {
 		t.Fatal(err)
 	}
 	for name, data := range map[string][]byte{
+		"list":            []byte(version + "\n"),
 		version + ".mod":  mod,
 		version + ".info": []byte(`{"Version":"v0.0.0-installtest","Time":"2026-01-01T00:00:00Z"}`),
 	} {
