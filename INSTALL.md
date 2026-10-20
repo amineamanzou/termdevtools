@@ -104,6 +104,8 @@ cd termdevtools
 
 The scripts build for your machine and install the binary into `~/.local/share/termdevtools` (linked into `~/.local/bin`) or `%LOCALAPPDATA%\termdevtools`. The `TERMDEVTOOLS_INSTALL_DIR` and `TERMDEVTOOLS_BIN_DIR` variables change those locations. To only build: `go build -o termdevtools .`
 
+Without cloning, from 0.7.2 on: `go install github.com/gnocent/termdevtools@latest` (or `@v0.7.2` for a given version) puts the binary in `GOBIN`, or `$(go env GOPATH)/bin` when it is unset.
+
 ## 3. First connection
 
 Run `termdevtools`. The interface is in English; once connected, `F3` switches it to French and remembers that choice.

@@ -4,7 +4,7 @@
 
 > Terminal-mode simulator of Kibana's "DevTools" view, for submitting requests to an Elasticsearch or OpenSearch cluster without going through a browser.
 
-Status: this document describes the design as shipped — version 0.7.1 (beta). The version history is in [CHANGELOG.md](CHANGELOG.md), the step-by-step installation in [INSTALL.md](INSTALL.md).
+Status: this document describes the design as shipped — version 0.7.2 (beta). The version history is in [CHANGELOG.md](CHANGELOG.md), the step-by-step installation in [INSTALL.md](INSTALL.md).
 
 ---
 
@@ -213,7 +213,7 @@ Deliberately left out: AI assistant or MCP server; forms for snapshots/ILM/templ
 
 - **Runtime dependencies**: none — the standard libc present on RHEL 8/9/10 (or any other Linux amd64 distribution) on that platform, nothing at all to install on Windows or macOS.
 - **Performance**: must support large results (several MB).
-- **Packaging**: a single binary to copy, with no file to install next to it, published with its SHA-256 checksum (`SHA256SUMS`). `termdevtools --version` tells which version it is, before any file is read or created. `termdevtools --export-defaults <directory>` writes the data built into it out as files — to read what is built in, or as examples for one's own files (§9.1); it refuses to overwrite an existing file, and to write into either directory reference files are read from (the built-in recipes would come back as the user's own, frozen copies hiding the corrections of later versions).
+- **Packaging**: a single binary to copy, with no file to install next to it, published with its SHA-256 checksum (`SHA256SUMS`); from 0.7.2 on, also installable with `go install github.com/gnocent/termdevtools@<version>` (tags `vX.Y.Z`; earlier versions declared another module path). `termdevtools --version` tells which version it is, before any file is read or created: the one stamped by `build-release.sh` or the install scripts, otherwise the module version Go records in the binary (the one installed by `go install`, or derived from git by a plain `go build`), otherwise `dev`. `termdevtools --export-defaults <directory>` writes the data built into it out as files — to read what is built in, or as examples for one's own files (§9.1); it refuses to overwrite an existing file, and to write into either directory reference files are read from (the built-in recipes would come back as the user's own, frozen copies hiding the corrections of later versions).
 - **Project/binary name**: termdevtools.
 
 ## 9. Technical architecture

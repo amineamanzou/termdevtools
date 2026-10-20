@@ -5,16 +5,16 @@
 Simulateur en mode terminal de la vue **DevTools** de Kibana, pour interroger un cluster Elasticsearch ou OpenSearch directement depuis un terminal — Linux (dont RHEL 8/9/10), Windows ou macOS — sans navigateur ni Kibana fonctionnel. Un seul binaire, rien d'autre à installer.
 
 > [!IMPORTANT]
-> **Nouveautés de la 0.7 (bêta)**
+> **Nouveautés de la 0.7.2 (bêta)**
 >
-> - **À travers un proxy** — les variables `HTTPS_PROXY` / `HTTP_PROXY` / `NO_PROXY` sont respectées, et `proxy:` dans `config.yaml` fixe ou interdit un proxy pour un cluster donné : HTTP, ou SOCKS5 (ce qu'ouvre `ssh -D`). Le proxy utilisé est toujours affiché.
-> - **Clés d'API telles que Kibana les donne** — la forme `encoded` se colle directement, sans identifiant à saisir.
-> - **Jetons Bearer** — un nouveau type d'authentification, pour un jeton de compte de service, un jeton d'accès ou un JWT.
-> - **Plus rien d'écrit à côté du binaire** — les exports (`Ctrl+S` sur un résultat) vont dans votre dossier de configuration : une installation partagée ou en lecture seule fonctionne entièrement.
+> - **`go install github.com/gnocent/termdevtools@latest`** — pour qui a Go ; les binaires précompilés restent la voie recommandée.
+> - **La complétion garde la requête qui suit le curseur** — `GET _cat/ind?format=json` se complète en `_cat/indices?v&format=json` — et accepte un `/` initial.
+>
+> La 0.7 avait apporté les proxys (`HTTPS_PROXY` / `HTTP_PROXY` / `NO_PROXY`, et `proxy:` par cluster dans `config.yaml`), les clés d'API telles que Kibana les donne, les jetons Bearer, et les exports dans votre dossier de configuration plutôt qu'à côté du binaire.
 >
 > **Avant de mettre à jour depuis la 0.6** : si `HTTPS_PROXY` est défini sur votre poste, vos clusters passeront désormais par ce proxy — voir [Mise à jour](#mise-à-jour-depuis-une-version-antérieure).
 >
-> C'est une **version bêta**, pas encore utilisée par d'autres que son auteur. La 0.6 avait apporté le catalogue de recettes (`F8`) et la prise en charge d'Elasticsearch et d'OpenSearch selon leur version. Détail et limites connues : **[journal des versions](CHANGELOG_fr.md)**.
+> C'est une **version bêta**, encore peu utilisée. Détail et limites connues : **[journal des versions](CHANGELOG_fr.md)**.
 
 - [Démo](#démo)
 - [Pourquoi](#pourquoi)
@@ -86,6 +86,16 @@ Le binaire est statique : il n'a besoin d'aucune bibliothèque système et se co
 ### Depuis les sources
 
 Nécessite [Go](https://go.dev/) 1.25 ou supérieur.
+
+Installation directe avec Go :
+
+```bash
+go install github.com/gnocent/termdevtools@latest
+```
+
+Le binaire est placé dans `GOBIN`, ou dans `$(go env GOPATH)/bin` si `GOBIN` n'est pas défini. Ajoutez ce dossier à votre `PATH` si besoin.
+
+Pour utiliser les scripts d'installation du dépôt :
 
 ```bash
 # Linux / macOS

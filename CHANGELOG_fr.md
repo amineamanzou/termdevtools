@@ -2,6 +2,27 @@
 
 # Journal des versions
 
+## 0.7.2 (bêta) — octobre 2026
+
+**En une phrase** : TermDevTools s'installe avec `go install`, et la complétion garde la requête qui suit le curseur et accepte un `/` initial.
+
+### Nouveautés
+
+- **`go install github.com/gnocent/termdevtools@latest`** : le module porte désormais le chemin du dépôt, et les versions sont taguées sur trois nombres (`v0.7.2`), la forme que Go reconnaît. Le binaire est placé dans `GOBIN`, ou dans `$(go env GOPATH)/bin` si `GOBIN` n'est pas défini. Les binaires précompilés restent la voie recommandée.
+- **`--version` sans version inscrite** : un binaire installé avec `go install` donne la version installée, et un binaire compilé par un simple `go build` dans un clone donne la version que Go déduit de git (`v0.7.3-0.<date>-<commit>`, avec `+dirty` si des fichiers ont été modifiés) au lieu de `dev`. `go run` affiche toujours `dev`.
+
+### Complétion
+
+- **Requête après le curseur** : compléter `_cat/ind` dans `GET _cat/ind?format=json` donne `_cat/indices?v&format=json` — les paramètres par défaut du candidat et votre requête sous un seul `?` — au lieu d'un second `?`. Votre requête est gardée telle que tapée, et une clé que vous fixez remplace le défaut de même clé.
+- **`/` initial** : `GET /_cat/pl` ne complétait rien ; il donne désormais `GET /_cat/plugins?v`, en gardant le `/`. Une entrée `/_cat/...` d'un `endpoints.txt` est aussi reconnue comme commande `_cat`, et ses colonnes se complètent.
+- **Une recherche au fil de la frappe qui ne trouve rien** : `Entrée` n'insère plus l'entrée restée sélectionnée par une recherche précédente ; elle ne fait rien tant que la recherche n'est pas corrigée (`Retour arrière`), annulée (`Echap`) ou remplacée par un choix explicite — flèches, `Tab`, `PgUp`/`PgDn`, `Home`/`End`, ou un clic sur une entrée.
+
+### Développement
+
+- `tools/testclusters.sh` fonctionne avec le `/bin/bash` 3.2 de macOS, et un test refuse les constructions Bash 4 qui le cassaient.
+
+Merci à @efd6 pour la demande (#1) et à @amineamanzou pour les modifications (#3, #4, #6).
+
 ## 0.7.1 (bêta) — octobre 2026
 
 ### Corrections

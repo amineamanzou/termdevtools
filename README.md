@@ -5,16 +5,16 @@
 A terminal-mode simulator of Kibana's **DevTools** view, for querying an Elasticsearch or OpenSearch cluster directly from a terminal — Linux (including RHEL 8/9/10), Windows, or macOS — without a browser or a working Kibana. A single binary, with nothing else to install.
 
 > [!IMPORTANT]
-> **What's new in 0.7 (beta)**
+> **What's new in 0.7.2 (beta)**
 >
-> - **Through a proxy** — the `HTTPS_PROXY` / `HTTP_PROXY` / `NO_PROXY` variables are honored, and `proxy:` in `config.yaml` sets or rules out a proxy for a given cluster: HTTP, or SOCKS5 (what `ssh -D` opens). The proxy in use is always displayed.
-> - **API keys the way Kibana gives them** — the `encoded` form is pasted as it is, with no identifier to enter.
-> - **Bearer tokens** — a new authentication type, for a service account token, an access token or a JWT.
-> - **Nothing written next to the binary anymore** — exports (`Ctrl+S` on a result) go to your configuration directory: a shared or read-only installation works in full.
+> - **`go install github.com/gnocent/termdevtools@latest`** — for those who have Go; the prebuilt binaries remain the recommended way.
+> - **Completion keeps the query after the cursor** — `GET _cat/ind?format=json` completes to `_cat/indices?v&format=json` — and accepts a leading `/`.
+>
+> 0.7 had brought proxies (`HTTPS_PROXY` / `HTTP_PROXY` / `NO_PROXY`, and `proxy:` per cluster in `config.yaml`), API keys the way Kibana gives them, Bearer tokens, and exports in your configuration directory rather than next to the binary.
 >
 > **Before upgrading from 0.6**: if `HTTPS_PROXY` is set on your machine, your clusters will now go through that proxy — see [Upgrading](#upgrading-from-an-earlier-version).
 >
-> This is a **beta version**, not yet used by anyone but its author. 0.6 had brought the recipe catalog (`F8`) and support for Elasticsearch and OpenSearch according to their version. Details and known limits: **[changelog](CHANGELOG.md)**.
+> This is a **beta version**, still used by few people. Details and known limits: **[changelog](CHANGELOG.md)**.
 
 - [Demo](#demo)
 - [Why](#why)

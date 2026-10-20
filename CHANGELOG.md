@@ -2,6 +2,27 @@
 
 # Changelog
 
+## 0.7.2 (beta) — October 2026
+
+**In one sentence**: TermDevTools installs with `go install`, and completion keeps the query after the cursor and accepts a leading `/`.
+
+### What's new
+
+- **`go install github.com/gnocent/termdevtools@latest`**: the module now has the repository's path, and versions are tagged with three numbers (`v0.7.2`), the form Go recognizes. The binary goes to `GOBIN`, or `$(go env GOPATH)/bin` when it is unset. Prebuilt binaries remain the recommended way.
+- **`--version` without a stamped version**: a binary installed with `go install` gives the version installed, and one built with a plain `go build` in a clone gives the version Go derives from git (`v0.7.3-0.<date>-<commit>`, with `+dirty` if files were modified) instead of `dev`. `go run` still says `dev`.
+
+### Completion
+
+- **Query after the cursor**: completing `_cat/ind` in `GET _cat/ind?format=json` gives `_cat/indices?v&format=json` — the candidate's default parameters and your query under a single `?` — instead of a second `?`. Your query is kept as typed, and a key you set replaces the default with the same key.
+- **Leading `/`**: `GET /_cat/pl` completed nothing; it now gives `GET /_cat/plugins?v`, keeping the `/`. A `/_cat/...` entry in an `endpoints.txt` is also recognized as a `_cat` command, so its columns complete too.
+- **A type-ahead search that matches nothing**: `Enter` no longer inserts the entry left selected by an earlier search; it does nothing until the search is corrected (`Backspace`), cancelled (`Esc`) or replaced by an explicit choice — arrows, `Tab`, `PgUp`/`PgDn`, `Home`/`End`, or a click on an entry.
+
+### Development
+
+- `tools/testclusters.sh` runs with the `/bin/bash` 3.2 of macOS, and a test rejects the Bash 4 constructs that broke it.
+
+Thanks to @efd6 for the request (#1) and to @amineamanzou for the changes (#3, #4, #6).
+
 ## 0.7.1 (beta) — October 2026
 
 ### Fixes
