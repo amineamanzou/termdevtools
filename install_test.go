@@ -111,8 +111,10 @@ func TestGoInstallVersionedModule(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		name += ".exe"
 	}
+	// Nothing stamps a go install build: --version reads the module version
+	// Go recorded in it.
 	output, err := exec.CommandContext(ctx, filepath.Join(bin, name), "--version").CombinedOutput()
-	if err != nil || string(output) != "termdevtools dev\n" {
+	if err != nil || string(output) != "termdevtools "+version+"\n" {
 		t.Fatalf("installed binary --version: %q (%v)", output, err)
 	}
 }
