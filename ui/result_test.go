@@ -9,7 +9,7 @@ import (
 	"sync"
 	"testing"
 
-	"termdevtools/i18n"
+	"github.com/gnocent/termdevtools/i18n"
 )
 
 func TestRepeatedExportsPreserveEveryResult(t *testing.T) {

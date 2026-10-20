@@ -6,7 +6,7 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
-	"termdevtools/i18n"
+	"github.com/gnocent/termdevtools/i18n"
 )
 
 // TestWrapRowStartsNoWrap checks the unambiguous baseline: a width wide

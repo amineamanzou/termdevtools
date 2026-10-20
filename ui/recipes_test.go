@@ -9,8 +9,8 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
-	"termdevtools/parser"
-	"termdevtools/refdata"
+	"github.com/gnocent/termdevtools/parser"
+	"github.com/gnocent/termdevtools/refdata"
 )
 
 var os219 = refdata.Target{Distribution: refdata.OpenSearch, Version: refdata.Version{Major: 2, Minor: 19}, HasVersion: true}

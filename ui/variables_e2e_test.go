@@ -7,7 +7,7 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
-	"termdevtools/parser"
+	"github.com/gnocent/termdevtools/parser"
 )
 
 // TestResolveRequestSubstitutesKnownVariables checks App.resolveRequest

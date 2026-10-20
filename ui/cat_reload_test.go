@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"termdevtools/esclient"
+	"github.com/gnocent/termdevtools/esclient"
 )
 
 func TestCatReloadIgnoresEarlierResponses(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"sort"
 	"testing"
 
-	"termdevtools/refdata"
+	"github.com/gnocent/termdevtools/refdata"
 )
 
 // es95 is the cluster the tests in this package select reference data for

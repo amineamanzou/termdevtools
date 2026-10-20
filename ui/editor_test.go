@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"termdevtools/i18n"
+	"github.com/gnocent/termdevtools/i18n"
 )
 
 func TestCompletionPrefixAtEndOfLine(t *testing.T) {

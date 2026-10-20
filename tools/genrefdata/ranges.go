@@ -1,6 +1,6 @@
 package main
 
-import "termdevtools/refdata"
+import "github.com/gnocent/termdevtools/refdata"
 
 // rangesFromPresence turns "seen at these versions" into version intervals.
 // versions are the points observed, ascending (release branches of a

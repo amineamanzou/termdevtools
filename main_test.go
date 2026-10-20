@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"termdevtools/refdata"
-	"termdevtools/ui"
+	"github.com/gnocent/termdevtools/refdata"
+	"github.com/gnocent/termdevtools/ui"
 )
 
 // TestBuildPathsWritesOnlyToTheUserDirectory checks where the interface is

@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	"termdevtools/internal/testclusters"
+	"github.com/gnocent/termdevtools/internal/testclusters"
 )
 
 // securedCall sends one request to the secured cluster, authenticated as

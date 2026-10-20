@@ -9,7 +9,7 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
-	"termdevtools/refdata"
+	"github.com/gnocent/termdevtools/refdata"
 )
 
 // hostile is what a compromised cluster — or a file dropped in a shared
