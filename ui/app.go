@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
@@ -105,6 +106,8 @@ type App struct {
 	completionEnd         int
 	completionTypedPrefix string
 	completionTypeahead   string
+	completionNoMatch     bool
+	completionErrorStatus int
 
 	pages       *tview.Pages
 	helpView    *tview.TextView
@@ -203,8 +206,25 @@ func NewApp(tapp *tview.Application, cr ConnectResult, cfg *config.Config, paths
 	a.completionList = tview.NewList().ShowSecondaryText(false)
 	a.completionList.SetBorder(true).SetTitle(msgs.CompletionTitle)
 	a.completionList.SetSelectedFunc(func(_ int, mainText, _ string, _ rune) {
+		if a.completionNoMatch {
+			return
+		}
 		a.editor.ApplyCompletion(a.completionStart, a.completionEnd, mainText)
 		a.closeCompletion()
+	})
+	a.completionList.SetMouseCapture(func(action tview.MouseAction, event *tcell.EventMouse) (tview.MouseAction, *tcell.EventMouse) {
+		if action == tview.MouseLeftClick && a.completionNoMatch && a.completionList.InRect(event.Position()) {
+			// Only an item is an explicit choice. A border/empty-area click
+			// must not focus the list after its blur handler has hidden it.
+			x, y := event.Position()
+			left, top, width, height := a.completionList.GetInnerRect()
+			offset, _ := a.completionList.GetOffset()
+			if x < left || x >= left+width || y < top || y >= top+height || y-top+offset >= a.completionList.GetItemCount() {
+				return tview.MouseConsumed, nil
+			}
+			a.resetFailedCompletionSearch()
+		}
+		return action, event
 	})
 	a.completionList.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		switch event.Key() {
@@ -212,6 +232,7 @@ func NewApp(tapp *tview.Application, cr ConnectResult, cfg *config.Config, paths
 			a.closeCompletion()
 			return nil
 		case tcell.KeyTab:
+			a.resetFailedCompletionSearch()
 			// One more Tab cycles through the suggestions, like repeated
 			// Tabs in classic shell completion.
 			next := a.completionList.GetCurrentItem() + 1
@@ -220,6 +241,8 @@ func NewApp(tapp *tview.Application, cr ConnectResult, cfg *config.Config, paths
 			}
 			a.completionList.SetCurrentItem(next)
 			return nil
+		case tcell.KeyUp, tcell.KeyDown, tcell.KeyLeft, tcell.KeyRight, tcell.KeyBacktab, tcell.KeyPgUp, tcell.KeyPgDn, tcell.KeyHome, tcell.KeyEnd:
+			a.resetFailedCompletionSearch()
 		case tcell.KeyRune:
 			a.typeaheadCompletion(event.Rune())
 			return nil
@@ -288,7 +311,17 @@ func NewApp(tapp *tview.Application, cr ConnectResult, cfg *config.Config, paths
 // count of the others), for callers that want to say more.
 func (a *App) loadReferenceData() []refdata.Problem {
 	catalog := refdata.Load(a.reference)
-	a.endpoints = catalog.Endpoints(a.target)
+	// Normalize once so custom /_cat commands are recognized for live
+	// column completion too, and duplicate slash spellings collapse.
+	a.endpoints = nil
+	seen := make(map[string]bool)
+	for _, endpoint := range catalog.Endpoints(a.target) {
+		endpoint = strings.TrimPrefix(endpoint, "/")
+		if !seen[endpoint] {
+			a.endpoints = append(a.endpoints, endpoint)
+			seen[endpoint] = true
+		}
+	}
 	a.catColumns = catalog.CatColumns(a.target)
 	// A _cat endpoint offered by completion is a known command even when
 	// the built-in table has no column for it (one the user added, or a
@@ -881,6 +914,11 @@ func (a *App) tryCompletion() bool {
 	if !ok {
 		return false
 	}
+	// The client accepts a leading slash; ignore it for matching, then
+	// retain it when inserting an endpoint. Column replacements already
+	// leave the path untouched.
+	leadingSlash := strings.HasPrefix(prefix, "/")
+	prefix = strings.TrimPrefix(prefix, "/")
 
 	if edit, ok := parseCatEdit(prefix, a.catColumns); ok {
 		// A sort direction (asc/desc) needs no column list; a column does,
@@ -910,7 +948,26 @@ func (a *App) tryCompletion() bool {
 	// included), not just the text preceding it — no need to adjust the
 	// bounds for this.
 	endpointPrefix := strings.TrimSuffix(prefix, "/")
-	a.offerCompletions(start, end, matchPrefix(endpointPrefix, a.endpoints))
+	matches := matchPrefix(endpointPrefix, a.endpoints)
+	if leadingSlash {
+		for i := range matches {
+			matches[i] = "/" + matches[i]
+		}
+	}
+	// The cursor may be just before an existing query. Include it in the
+	// replacement and merge it with the candidate's parameters, so ?v and
+	// ?format=json become one query rather than ?v?format=json.
+	suffix := a.editor.Text()[end:]
+	if strings.HasPrefix(suffix, "?") {
+		if space := strings.IndexFunc(suffix, unicode.IsSpace); space >= 0 {
+			suffix = suffix[:space]
+		}
+		for i := range matches {
+			matches[i] = mergeEndpointQuery(matches[i], suffix[1:])
+		}
+		end += len(suffix)
+	}
+	a.offerCompletions(start, end, matches)
 	return true
 }
 
@@ -999,18 +1056,21 @@ func (a *App) offerCompletions(start, end int, matches []string) {
 		// no completion) before showing the list — otherwise it stays
 		// displayed, in red, behind/around a completion that did work.
 		a.status.SetIdle()
-		a.openCompletion(start, end, matches)
+		a.openCompletion(start, end, a.editor.CursorOffset(), matches)
 	}
 }
 
-func (a *App) openCompletion(start, end int, matches []string) {
+func (a *App) openCompletion(start, end, prefixEnd int, matches []string) {
 	a.completionStart, a.completionEnd = start, end
 	// The already-typed text that produced matches (e.g. "_cat/s") — every
 	// item in the list starts with it, so further typeahead keystrokes are
 	// matched against this prefix plus what's typed next, not against the
 	// bare keystrokes alone (see applyCompletionTypeahead).
-	a.completionTypedPrefix = a.editor.Text()[start:end]
+	// The replacement may also include query text after the cursor; that
+	// suffix is not part of the prefix used by typeahead.
+	a.completionTypedPrefix = a.editor.Text()[start:prefixEnd]
 	a.completionTypeahead = ""
+	a.completionNoMatch = false
 	a.updateCompletionTitle()
 
 	a.completionList.Clear()
@@ -1059,6 +1119,15 @@ func (a *App) typeaheadCompletionBackspace() {
 	a.applyCompletionTypeahead()
 }
 
+// resetFailedCompletionSearch makes deliberate navigation override a failed
+// typeahead search. applyCompletionTypeahead clears only this search's error.
+func (a *App) resetFailedCompletionSearch() {
+	if a.completionNoMatch {
+		a.completionTypeahead = ""
+		a.applyCompletionTypeahead()
+	}
+}
+
 // applyCompletionTypeahead selects the first item in the completion list
 // whose text starts with completionTypedPrefix+completionTypeahead
 // (case-insensitive) — every item already starts with completionTypedPrefix
@@ -1071,6 +1140,12 @@ func (a *App) typeaheadCompletionBackspace() {
 // instead of the list silently not reacting to the keystroke.
 func (a *App) applyCompletionTypeahead() {
 	a.updateCompletionTitle()
+	// Clear only this search's previous error, not a fallback warning or
+	// a newer status written by an asynchronous request.
+	if a.completionNoMatch && a.status.Version() == a.completionErrorStatus {
+		a.status.SetIdle()
+	}
+	a.completionNoMatch = false
 	if a.completionTypeahead == "" {
 		return
 	}
@@ -1082,6 +1157,11 @@ func (a *App) applyCompletionTypeahead() {
 			return
 		}
 	}
+	// Leave the list open for correction, cancellation or an explicit
+	// choice. Enter alone must not apply a stale selection.
+	a.completionNoMatch = true
+	a.status.SetError(a.msgs.ErrNoCompletion)
+	a.completionErrorStatus = a.status.Version()
 }
 
 // updateCompletionTitle refreshes the completion list's border title to

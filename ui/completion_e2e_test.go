@@ -283,6 +283,50 @@ func TestCompletionSingleMatchAppliesInline(t *testing.T) {
 	}
 }
 
+func TestCompletionPreservesQueryAfterCursor(t *testing.T) {
+	for _, tc := range []struct{ query, want string }{
+		{"format=json", "GET _cat/plugins?v&format=json"},
+		{"v", "GET _cat/plugins?v"},
+		{"v=false&format=json", "GET _cat/plugins?v=false&format=json"},
+		{"format=json&%76=false", "GET _cat/plugins?format=json&%76=false"},
+		{"tag=a%2Bb&tag=c+d", "GET _cat/plugins?v&tag=a%2Bb&tag=c+d"},
+		{"", "GET _cat/plugins?v"},
+	} {
+		t.Run(tc.query, func(t *testing.T) {
+			app, screen := newTestApp(t)
+			text := "GET _cat/pl?" + tc.query + "\nGET _cluster/health"
+			uiValue(app, func() bool {
+				app.editor.view.SetText(text, false)
+				cursor := len("GET _cat/pl")
+				app.editor.view.Select(cursor, cursor)
+				return true
+			})
+			screen.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
+			waitForDraw(t, screen)
+			if got, want := editorText(app), tc.want+"\nGET _cluster/health"; got != want {
+				t.Fatalf("completion must merge parameters without changing the next request: got %q, want %q", got, want)
+			}
+		})
+	}
+}
+
+func TestCompletionTypeaheadPreservesQueryAfterCursor(t *testing.T) {
+	app, screen := newTestApp(t)
+	uiValue(app, func() bool {
+		app.editor.view.SetText("GET _cat/s?format=json", false)
+		cursor := len("GET _cat/s")
+		app.editor.view.Select(cursor, cursor)
+		return true
+	})
+	screen.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
+	injectText(screen, "h")
+	screen.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitForDraw(t, screen)
+	if got := editorText(app); got != "GET _cat/shards?v&format=json" {
+		t.Fatalf("typeahead should search the path while preserving its query, got %q", got)
+	}
+}
+
 // TestCompletionTrailingSlashIsIgnored covers the reported case: the
 // trailing "/" before the parameters (or at the very end of the path) is
 // optional in HTTP — "_cat/plugins/" must complete like "_cat/plugins",
@@ -300,6 +344,69 @@ func TestCompletionTrailingSlashIsIgnored(t *testing.T) {
 	want := "GET _cat/plugins?v"
 	if got != want {
 		t.Errorf("expected the trailing '/' to be ignored and replaced, got %q want %q", got, want)
+	}
+}
+
+func TestCompletionLeadingSlashIsPreserved(t *testing.T) {
+	for _, tc := range []struct{ input, want string }{
+		{"GET /_cat/pl", "GET /_cat/plugins?v"},
+		{"GET /_cat/plugins/", "GET /_cat/plugins?v"},
+		{"GET /_cat/indices?h=heal", "GET /_cat/indices?h=health"},
+		{"GET /_cat/shards?s=index:de", "GET /_cat/shards?s=index:desc"},
+	} {
+		t.Run(tc.input, func(t *testing.T) {
+			app, screen := newTestApp(t)
+			injectText(screen, tc.input)
+			screen.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
+			waitForDraw(t, screen)
+			if got := editorText(app); got != tc.want {
+				t.Fatalf("completion with a leading slash: got %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestCompletionLeadingSlashTypeahead(t *testing.T) {
+	app, screen := newTestApp(t)
+	injectText(screen, "GET /_cat/s")
+	screen.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
+	injectText(screen, "h")
+	screen.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitForDraw(t, screen)
+	if got := editorText(app); got != "GET /_cat/shards?v" {
+		t.Fatalf("typeahead should preserve the leading slash, got %q", got)
+	}
+}
+
+func TestCompletionLeadingSlashCustomEndpoints(t *testing.T) {
+	for _, input := range []string{"GET /_review/st", "GET /"} {
+		t.Run(input, func(t *testing.T) {
+			userDir := t.TempDir()
+			writeReferenceFile(t, userDir, "endpoints.txt", "/_review/status\n")
+			app, screen := newTestAppWith(t, testAppOptions{reference: refdata.Sources{UserDir: userDir}})
+			injectText(screen, input)
+			screen.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
+			if input == "GET /" {
+				injectText(screen, "_review/st")
+				screen.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+			}
+			waitForDraw(t, screen)
+			if got := editorText(app); got != "GET /_review/status" {
+				t.Fatalf("slash-prefixed custom endpoints should still complete, got %q", got)
+			}
+		})
+	}
+}
+
+func TestCompletionLeadingSlashDoesNotDuplicateBuiltin(t *testing.T) {
+	userDir := t.TempDir()
+	writeReferenceFile(t, userDir, "endpoints.txt", "/_cat/plugins?v\n")
+	app, screen := newTestAppWith(t, testAppOptions{reference: refdata.Sources{UserDir: userDir}})
+	injectText(screen, "GET /_cat/pl")
+	screen.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
+	waitForDraw(t, screen)
+	if got := editorText(app); got != "GET /_cat/plugins?v" {
+		t.Fatalf("equivalent candidates should complete inline, got %q", got)
 	}
 }
 
@@ -395,6 +502,87 @@ func TestCompletionTypeaheadJumpsToMatch(t *testing.T) {
 	}
 }
 
+// TestCompletionTypeaheadNoMatchCannotApplyStaleSelection refuses Enter alone
+// after a failed search and allows correcting that search with Backspace.
+func TestCompletionTypeaheadNoMatchCannotApplyStaleSelection(t *testing.T) {
+	app, screen := newTestApp(t)
+	injectText(screen, "GET _cat/s")
+	screen.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
+	injectText(screen, "hzz")
+	screen.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitForDraw(t, screen)
+
+	if got := editorText(app); got != "GET _cat/s" {
+		t.Fatalf("a search with no match applied a stale candidate: %q", got)
+	}
+	if app.tapp.GetFocus() != app.completionList {
+		t.Fatal("the list should stay open so the search can be corrected")
+	}
+	if !strings.Contains(screenText(screen), app.msgs.ErrNoCompletion) {
+		t.Fatal("a search with no match should report it")
+	}
+
+	// Removing the unmatched suffix restores the original matching search.
+	screen.InjectKey(tcell.KeyBackspace2, 0, tcell.ModNone)
+	screen.InjectKey(tcell.KeyBackspace2, 0, tcell.ModNone)
+	waitForDraw(t, screen)
+	if strings.Contains(screenText(screen), app.msgs.ErrNoCompletion) {
+		t.Fatal("the no-match error should clear when a match is restored")
+	}
+	screen.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitForDraw(t, screen)
+	if got := editorText(app); got != "GET _cat/shards?v" {
+		t.Fatalf("the corrected search should apply shards, got %q", got)
+	}
+}
+
+func TestCompletionTypeaheadNoMatchCanBeCancelled(t *testing.T) {
+	app, screen := newTestApp(t)
+	injectText(screen, "GET _cat/s")
+	screen.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
+	injectText(screen, "zz")
+	screen.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitForDraw(t, screen)
+	if got := editorText(app); got != "GET _cat/s" {
+		t.Fatalf("a failed search changed the editor: %q", got)
+	}
+	screen.InjectKey(tcell.KeyEscape, 0, tcell.ModNone)
+	waitForDraw(t, screen)
+	if app.tapp.GetFocus() != app.editor.Primitive() || editorText(app) != "GET _cat/s" {
+		t.Fatal("Escape should return to the unchanged editor")
+	}
+}
+
+func TestCompletionTypeaheadPreservesFallbackWarning(t *testing.T) {
+	srv := newCatHelpServer(t, nil)
+	app, screen := newTestAppWith(t, testAppOptions{clusterURL: srv.URL})
+	injectText(screen, "GET _cat/indices?h=s")
+	screen.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
+	eventually(t, "the fallback warning and column list", func() bool {
+		return completionCount(app) > 1 && strings.Contains(statusText(app), app.msgs.WarnCatColumnsBuiltIn)
+	})
+	injectText(screen, "t")
+	waitForDraw(t, screen)
+	if !strings.Contains(statusText(app), app.msgs.WarnCatColumnsBuiltIn) {
+		t.Fatal("valid typeahead must not clear the CAT fallback warning")
+	}
+}
+
+func TestCompletionTypeaheadRecoveryPreservesNewerStatus(t *testing.T) {
+	app, screen := newTestApp(t)
+	injectText(screen, "GET _cat/s")
+	screen.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
+	injectText(screen, "hz")
+	waitForDraw(t, screen)
+	const newer = "a newer request result"
+	onUI(app, func() { app.status.SetInfo(newer) })
+	screen.InjectKey(tcell.KeyBackspace2, 0, tcell.ModNone)
+	waitForDraw(t, screen)
+	if !strings.Contains(statusText(app), newer) {
+		t.Fatal("recovering from no match must not clear a newer status")
+	}
+}
+
 // TestCompletionTypeaheadSurvivesPause checks that a pause between
 // keystrokes never drops already-typed characters from the type-ahead
 // buffer — a prior version reset the buffer after 700ms of inactivity,
@@ -482,5 +670,232 @@ func TestTabInsideJSONBodyIsNotIntercepted(t *testing.T) {
 	want := "POST _search\n{\t}"
 	if got := editorText(app); got != want {
 		t.Errorf("expected a literal tab inserted in JSON body context, got %q want %q", got, want)
+	}
+}
+
+// TestCompletionCombinedRecovery preserves surrounding requests and user query
+// values when a failed search is corrected or explicitly selected.
+func TestCompletionCombinedRecovery(t *testing.T) {
+	for _, target := range []struct {
+		name      string
+		target    refdata.Target
+		mouseWant string
+	}{
+		{"Elasticsearch", es95, "# résumé\nGET /_cat/segments?format=json&v=false\nGET _cluster/health"},
+		{"OpenSearch", refdata.Target{Distribution: refdata.OpenSearch, Version: refdata.Version{Major: 3, Minor: 9}, HasVersion: true}, "# résumé\nGET /_cat/segment_replication?format=json&v=false\nGET _cluster/health"},
+	} {
+		for _, mouse := range []bool{false, true} {
+			name := target.name + "/keyboard"
+			if mouse {
+				name = target.name + "/mouse"
+			}
+			t.Run(name, func(t *testing.T) {
+				app, screen := newTestAppWith(t, testAppOptions{target: target.target, mouse: mouse})
+				const before = "# résumé\nGET /_cat/s?format=json&v=false\nGET _cluster/health"
+				onUI(app, func() {
+					app.editor.view.SetText(before, false)
+					cursor := len("# résumé\nGET /_cat/s")
+					app.editor.view.Select(cursor, cursor)
+				})
+				screen.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
+				injectText(screen, "hzz")
+				screen.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+				waitForDraw(t, screen)
+				if got := editorText(app); got != before {
+					t.Fatalf("an unmatched search changed the request: %q", got)
+				}
+				if !uiValue(app, func() bool {
+					_, _, _, height := app.completionList.GetRect()
+					return height > 0 && app.tapp.GetFocus() == app.completionList
+				}) {
+					t.Fatal("an unmatched search must leave the popup visible and focused")
+				}
+				if mouse {
+					var x, y int
+					onUI(app, func() { x, y, _, _ = app.completionList.GetInnerRect() })
+					click(screen, x+1, y)
+					waitForDraw(t, screen)
+					if got := editorText(app); got != target.mouseWant {
+						t.Fatalf("explicit mouse selection changed surrounding text: %q", got)
+					}
+					return
+				}
+				screen.InjectKey(tcell.KeyBackspace2, 0, tcell.ModNone)
+				screen.InjectKey(tcell.KeyBackspace2, 0, tcell.ModNone)
+				screen.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+				waitForDraw(t, screen)
+				const want = "# résumé\nGET /_cat/shards?format=json&v=false\nGET _cluster/health"
+				if got := editorText(app); got != want {
+					t.Fatalf("recovery must preserve the slash, user query and surrounding text: got %q, want %q", got, want)
+				}
+			})
+		}
+	}
+}
+
+// TestCompletionNoMatchReset clears failed searches on correction or reopening.
+func TestCompletionNoMatchReset(t *testing.T) {
+	for _, reset := range []string{"backspace", "reopen"} {
+		t.Run(reset, func(t *testing.T) {
+			app, screen := newTestApp(t)
+			injectText(screen, "GET /_cat/s")
+			screen.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
+			injectText(screen, "z")
+			if reset == "backspace" {
+				screen.InjectKey(tcell.KeyBackspace2, 0, tcell.ModNone)
+			} else {
+				screen.InjectKey(tcell.KeyEscape, 0, tcell.ModNone)
+				screen.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
+			}
+			screen.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+			waitForDraw(t, screen)
+			if got := editorText(app); got != "GET /_cat/segments?v" {
+				t.Fatalf("reset must allow a normal selection, got %q", got)
+			}
+			if strings.Contains(statusText(app), app.msgs.ErrNoCompletion) {
+				t.Fatal("reset left a stale no-match error")
+			}
+		})
+	}
+}
+
+// TestCompletionCustomQueryOverridesRepeatedDefaults preserves repeated and
+// escaped user parameters when defaults use equivalent query keys.
+func TestCompletionCustomQueryOverridesRepeatedDefaults(t *testing.T) {
+	userDir := t.TempDir()
+	writeReferenceFile(t, userDir, "endpoints.txt", "/_custom/status?pretty=true&tag=a&tag=b&x%20y=default\n")
+	app, screen := newTestAppWith(t, testAppOptions{reference: refdata.Sources{UserDir: userDir}})
+	onUI(app, func() {
+		app.editor.view.SetText("GET /_custom/st?pretty=false&tag=c%2Bd&tag=e+f&x+y=override", false)
+		cursor := len("GET /_custom/st")
+		app.editor.view.Select(cursor, cursor)
+	})
+	screen.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
+	waitForDraw(t, screen)
+	const want = "GET /_custom/status?pretty=false&tag=c%2Bd&tag=e+f&x+y=override"
+	if got := editorText(app); got != want {
+		t.Fatalf("user query must override every equivalent default without re-encoding values: got %q, want %q", got, want)
+	}
+}
+
+// TestCatCompletionRecoveryPreservesOtherColumnsAndParameters changes only
+// the selected CAT column after correcting a failed search.
+func TestCatCompletionRecoveryPreservesOtherColumnsAndParameters(t *testing.T) {
+	app, screen := newTestApp(t)
+	const before = "GET /_cat/indices?h=health,s&format=json"
+	onUI(app, func() {
+		app.editor.view.SetText(before, false)
+		cursor := len("GET /_cat/indices?h=health,s")
+		app.editor.view.Select(cursor, cursor)
+	})
+	screen.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
+	injectText(screen, "tzz")
+	screen.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitForDraw(t, screen)
+	if got := editorText(app); got != before {
+		t.Fatalf("an unmatched CAT column search changed the request: %q", got)
+	}
+	screen.InjectKey(tcell.KeyBackspace2, 0, tcell.ModNone)
+	screen.InjectKey(tcell.KeyBackspace2, 0, tcell.ModNone)
+	screen.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitForDraw(t, screen)
+	if got, want := editorText(app), "GET /_cat/indices?h=health,status&format=json"; got != want {
+		t.Fatalf("column completion changed surrounding parameters: got %q, want %q", got, want)
+	}
+}
+
+// TestCompletionNoMatchExplicitNavigation allows deliberate list navigation to
+// override a failed typeahead search, while Enter alone remains protected.
+func TestCompletionNoMatchExplicitNavigation(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		key  tcell.Key
+		want string
+	}{
+		{"down", tcell.KeyDown, "GET _cat/snapshots?v"},
+		{"up", tcell.KeyUp, "GET _cat/segments?v"},
+		{"left", tcell.KeyLeft, "GET _cat/shards?v"},
+		{"right", tcell.KeyRight, "GET _cat/shards?v"},
+		{"tab", tcell.KeyTab, "GET _cat/snapshots?v"},
+		{"backtab", tcell.KeyBacktab, "GET _cat/segments?v"},
+		{"page down", tcell.KeyPgDn, "GET _cat/snapshots?v"},
+		{"page up", tcell.KeyPgUp, "GET _cat/segments?v"},
+		{"home", tcell.KeyHome, "GET _cat/segments?v"},
+		{"end", tcell.KeyEnd, "GET _cat/snapshots?v"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			app, screen := newTestApp(t)
+			injectText(screen, "GET _cat/s")
+			screen.InjectKey(tcell.KeyTab, 0, 0)
+			injectText(screen, "hzz")
+			screen.InjectKey(tc.key, 0, 0)
+			waitForDraw(t, screen)
+			if strings.Contains(statusText(app), app.msgs.ErrNoCompletion) {
+				t.Error("explicit navigation kept failed-search error")
+			}
+			screen.InjectKey(tcell.KeyEnter, 0, 0)
+			waitForDraw(t, screen)
+			if got := editorText(app); got != tc.want {
+				t.Fatalf("explicit selection: got %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestCompletionNavigationPreservesNewerStatus prevents clearing an unrelated
+// asynchronous result when a failed search is overridden explicitly.
+func TestCompletionNavigationPreservesNewerStatus(t *testing.T) {
+	app, screen := newTestApp(t)
+	injectText(screen, "GET _cat/s")
+	screen.InjectKey(tcell.KeyTab, 0, 0)
+	injectText(screen, "hz")
+	waitForDraw(t, screen)
+	onUI(app, func() { app.status.SetInfo("new request result") })
+	screen.InjectKey(tcell.KeyDown, 0, 0)
+	waitForDraw(t, screen)
+	if !strings.Contains(statusText(app), "new request result") {
+		t.Error("navigation cleared a newer result")
+	}
+	screen.InjectKey(tcell.KeyEnter, 0, 0)
+	waitForDraw(t, screen)
+	if got := editorText(app); got != "GET _cat/snapshots?v" {
+		t.Fatalf("selection was still blocked: %q", got)
+	}
+}
+
+// TestSlashPrefixedCustomCatColumns learns columns for CAT commands declared
+// with a leading slash, using the cluster's actual help response.
+func TestSlashPrefixedCustomCatColumns(t *testing.T) {
+	dir := t.TempDir()
+	writeReferenceFile(t, dir, "endpoints.txt", "/_cat/custom\n")
+	srv := newCatHelpServer(t, map[string]string{"custom": "custom_column | cc | custom column\n"})
+	app, screen := newTestAppWith(t, testAppOptions{clusterURL: srv.URL, reference: refdata.Sources{UserDir: dir}})
+	injectText(screen, "GET /_cat/custom?h=custom_")
+	screen.InjectKey(tcell.KeyTab, 0, 0)
+	eventually(t, "custom CAT column offered", func() bool { return editorText(app) == "GET /_cat/custom?h=custom_column" })
+	if srv.requestCount() != 1 {
+		t.Errorf("expected one help request, got %d", srv.requestCount())
+	}
+}
+
+// TestCompletionNoMatchBorderClick keeps a non-item click from clearing a
+// failed search or leaving an invisible list focused.
+func TestCompletionNoMatchBorderClick(t *testing.T) {
+	app, screen := newTestAppWith(t, testAppOptions{mouse: true})
+	injectText(screen, "GET _cat/s")
+	screen.InjectKey(tcell.KeyTab, 0, 0)
+	injectText(screen, "hz")
+	waitForDraw(t, screen)
+	var x, y int
+	onUI(app, func() { x, y, _, _ = app.completionList.GetRect() })
+	click(screen, x, y)
+	waitForDraw(t, screen)
+	screen.InjectKey(tcell.KeyEnter, 0, 0)
+	waitForDraw(t, screen)
+	if got := editorText(app); got != "GET _cat/s" {
+		t.Fatalf("border click applied a stale item: %q", got)
+	}
+	if !uiValue(app, func() bool { _, _, _, h := app.completionList.GetRect(); return h > 0 && app.completionList.HasFocus() }) {
+		t.Error("border click hid the focused list")
 	}
 }

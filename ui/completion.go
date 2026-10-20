@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"net/url"
 	"sort"
 	"strings"
 )
@@ -23,6 +24,38 @@ func matchPrefix(prefix string, candidates []string) []string {
 	}
 	sort.Strings(matches)
 	return matches
+}
+
+// mergeEndpointQuery adds an endpoint's default parameters only when the
+// query already in the editor does not specify their keys. Keep the user's
+// query verbatim, including its escaping, order and repeated parameters.
+func mergeEndpointQuery(endpoint, query string) string {
+	path, defaults, _ := strings.Cut(endpoint, "?")
+	specified := make(map[string]bool)
+	for _, param := range strings.Split(query, "&") {
+		specified[queryParameterKey(param)] = true
+	}
+	var params []string
+	for _, param := range strings.Split(defaults, "&") {
+		if param != "" && !specified[queryParameterKey(param)] {
+			params = append(params, param)
+		}
+	}
+	if query != "" {
+		params = append(params, query)
+	}
+	if len(params) == 0 {
+		return path
+	}
+	return path + "?" + strings.Join(params, "&")
+}
+
+func queryParameterKey(param string) string {
+	key, _, _ := strings.Cut(param, "=")
+	if decoded, err := url.QueryUnescape(key); err == nil {
+		return decoded
+	}
+	return key
 }
 
 // sortDirections are the possible values for a column's sort direction in
