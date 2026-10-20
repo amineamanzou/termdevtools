@@ -65,7 +65,11 @@ selected() {
 }
 
 up() {
-  mapfile -t chosen < <(selected "$@")
+  chosen=()
+  # Keep this read loop compatible with macOS /bin/bash 3.2 (no mapfile).
+  while IFS= read -r t; do
+    chosen+=("$t")
+  done < <(selected "$@")
   if [ "${#chosen[@]}" -eq 0 ]; then
     echo "no such cluster: $*" >&2
     return 2
@@ -137,11 +141,11 @@ up() {
 }
 
 down() {
-  mapfile -t chosen < <(selected "$@")
-  for t in "${chosen[@]}"; do
+  # Keep this read loop compatible with macOS /bin/bash 3.2 (no mapfile).
+  while IFS= read -r t; do
     IFS='|' read -r name image port <<<"$t"
     docker rm -f "tdt-$name" >/dev/null 2>&1 && echo "removed tdt-$name"
-  done
+  done < <(selected "$@")
 }
 
 env_line() {
