@@ -21,10 +21,24 @@ import (
 	"github.com/gnocent/termdevtools/ui"
 )
 
-// version identifies the build. Release binaries are stamped by
-// build-release.sh (-ldflags "-X main.version=..."); anything else — go
-// build, go run, the install scripts — says "dev".
+// version identifies the build. Release binaries and the install scripts
+// stamp it (-ldflags "-X main.version=..."); otherwise buildVersion falls
+// back on what Go recorded in the binary.
 var version = "dev"
+
+// buildVersion is what --version prints: the stamped version if there is
+// one, else the main module's version from the build info — the one asked
+// for by "go install github.com/gnocent/termdevtools@v0.7.2", or derived
+// from git by a plain "go build" in a checkout — else "dev".
+func buildVersion() string {
+	if version != "dev" {
+		return version
+	}
+	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" && info.Main.Version != "(devel)" {
+		return info.Main.Version
+	}
+	return version
+}
 
 func main() {
 	options, err := parseCLI(os.Args[1:])
@@ -37,7 +51,7 @@ func main() {
 		os.Exit(2)
 	}
 	if options.ShowVersion {
-		fmt.Println("termdevtools " + version)
+		fmt.Println("termdevtools " + buildVersion())
 		return
 	}
 

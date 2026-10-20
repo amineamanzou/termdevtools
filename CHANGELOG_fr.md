@@ -2,6 +2,39 @@
 
 # Journal des versions
 
+## 0.7.2 (bêta) — octobre 2026
+
+**En une phrase** : TermDevTools s'installe avec `go install`, et la complétion garde la requête qui suit le curseur et accepte un `/` initial.
+
+### Nouveautés
+
+- **`go install github.com/gnocent/termdevtools@latest`** : le module porte désormais le chemin du dépôt, et les versions sont taguées sur trois nombres (`v0.7.2`), la forme que Go reconnaît. Le binaire est placé dans `GOBIN`, ou dans `$(go env GOPATH)/bin` si `GOBIN` n'est pas défini. Les binaires précompilés restent la voie recommandée.
+- **`--version` sans version inscrite** : un binaire installé avec `go install` donne la version installée, et un binaire compilé par un simple `go build` dans un clone donne la version que Go déduit de git (`v0.7.3-0.<date>-<commit>`, avec `+dirty` si des fichiers ont été modifiés) au lieu de `dev`. `go run` affiche toujours `dev`.
+
+### Complétion
+
+- **Requête après le curseur** : compléter `_cat/ind` dans `GET _cat/ind?format=json` donne `_cat/indices?v&format=json` — les paramètres par défaut du candidat et votre requête sous un seul `?` — au lieu d'un second `?`. Votre requête est gardée telle que tapée, et une clé que vous fixez remplace le défaut de même clé.
+- **`/` initial** : `GET /_cat/pl` ne complétait rien ; il donne désormais `GET /_cat/plugins?v`, en gardant le `/`. Une entrée `/_cat/...` d'un `endpoints.txt` est aussi reconnue comme commande `_cat`, et ses colonnes se complètent.
+- **Une recherche au fil de la frappe qui ne trouve rien** : `Entrée` n'insère plus l'entrée restée sélectionnée par une recherche précédente ; elle ne fait rien tant que la recherche n'est pas corrigée (`Retour arrière`), annulée (`Echap`) ou remplacée par un choix explicite — flèches, `Tab`, `PgUp`/`PgDn`, `Home`/`End`, ou un clic sur une entrée.
+
+### Développement
+
+- `tools/testclusters.sh` fonctionne avec le `/bin/bash` 3.2 de macOS, et un test refuse les constructions Bash 4 qui le cassaient.
+
+Merci à @efd6 pour la demande (#1) et à @amineamanzou pour les modifications (#3, #4, #6).
+
+## 0.7.1 (bêta) — octobre 2026
+
+### Corrections
+
+- **Une ligne de requête incomplète n'exécute plus la requête du dessus** : `Ctrl+E` sur une ligne comme `GET`, en cours de saisie, envoyait la requête la plus proche au-dessus, un `DELETE` par exemple. Rien n'est envoyé désormais, et la barre de statut indique qu'aucune requête n'a été trouvée. Une ligne vide ou de commentaire entre deux requêtes exécute toujours celle du dessus.
+- **Une nouvelle connexion n'échoue plus sous Linux à cause des dossiers de certificats** : `default_ca_dir` et `default_client_cert_dir` remplissaient les champs de certificat d'une nouvelle connexion avec un dossier, ensuite chargé comme un fichier — même en http, où ces champs sont masqués. Ils ne fixent plus que le point de départ du sélecteur de certificat.
+- **Les fichiers TLS ne sont lus que s'ils servent** : le fichier CA seulement en https avec vérification, le certificat client seulement en https. Un chemin enregistré pour un cluster en http, ou sans vérification, ne bloque plus la connexion. La commande de `F9` suit la même règle.
+- **Deux exports dans la même seconde ne s'écrasent plus** : le nom du fichier se termine désormais par un nombre aléatoire (`AAAAMMJJ-HHMMSS-<nombre>.json`).
+- **`F7` pendant la récupération des colonnes `_cat`** : une réponse antérieure au rechargement ne remplace plus les nouvelles colonnes.
+
+Merci à @fbaligand pour le signalement (#2) et à @amineamanzou pour les correctifs (#5, #7).
+
 ## 0.7 (bêta) — octobre 2026
 
 **En une phrase** : TermDevTools atteint un cluster à travers un proxy, accepte les clés d'API telles que Kibana les donne ainsi que les jetons Bearer, et n'écrit plus rien à côté de son binaire.

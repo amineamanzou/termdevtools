@@ -1,6 +1,6 @@
 # Named contexts in this fork
 
-Build `feature/named-contexts-v1` from [Amine's fork](https://github.com/amineamanzou/termdevtools/tree/feature/named-contexts-v1). The upstream release binaries do not include this feature.
+Build `feature/named-contexts-v1` from [Amine's fork](https://github.com/amineamanzou/termdevtools/tree/feature/named-contexts-v1). This branch incorporates upstream v0.7.2, including its completion fixes and module-version reporting. The upstream release binaries do not include named contexts.
 
 ```sh
 git clone --branch feature/named-contexts-v1 https://github.com/amineamanzou/termdevtools.git

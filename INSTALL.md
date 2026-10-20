@@ -114,6 +114,8 @@ cd termdevtools
 
 The scripts build for your machine and install the binary into `~/.local/share/termdevtools` (linked into `~/.local/bin`) or `%LOCALAPPDATA%\termdevtools`. The `TERMDEVTOOLS_INSTALL_DIR` and `TERMDEVTOOLS_BIN_DIR` variables change those locations. To only build: `go build -o termdevtools .`
 
+Without cloning, from 0.7.2 on: `go install github.com/gnocent/termdevtools@latest` (or `@v0.7.2` for a given version) puts the binary in `GOBIN`, or `$(go env GOPATH)/bin` when it is unset.
+
 ## 3. First connection
 
 Run `termdevtools`. The interface is in English; once connected, `F3` switches it to French and remembers that choice.
@@ -197,7 +199,7 @@ If the `XDG_CONFIG_HOME` variable is set, the directory is `$XDG_CONFIG_HOME/ter
 | `default_timeout_seconds` | `120` | Maximum duration of a request, in seconds. |
 | `language` | `en` | Interface language: `en` or `fr`. `F3` changes it and updates this line. |
 | `mouse` | `false` | Enables the mouse (click to switch panel, to choose in a list). Left off, the terminal's own selection and copy-paste stay available. |
-| `default_ca_dir` | `/etc/pki/tls/certs` on Linux, empty elsewhere | Directory offered for the *CA file* field and browsed by its picker. |
+| `default_ca_dir` | `/etc/pki/tls/certs` on Linux, empty elsewhere | Directory where the picker of the *CA file* field (`Enter` on it) starts. The field itself stays empty until a file is chosen. |
 | `default_client_cert_dir` | same | The same for the client's certificate and key. |
 | `clusters` | empty | The connection history, most recent first. Kept up to date by the program. |
 

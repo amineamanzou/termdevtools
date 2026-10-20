@@ -14,7 +14,7 @@ func TestPickerCancelDoesNotRestoreHiddenCompletion(t *testing.T) {
 		a := c.active.app
 		a.editor.SetInitialText("GET _cat/")
 		a.editor.SelectRange(len("GET _cat/"), len("GET _cat/"))
-		a.openCompletion(4, len("GET _cat/"), []string{"_cat/indices", "_cat/shards"})
+		a.openCompletion(4, len("GET _cat/"), len("GET _cat/"), []string{"_cat/indices", "_cat/shards"})
 	})
 	s.InjectKey(tcell.KeyF6, 0, 0)
 	s.InjectKey(tcell.KeyEscape, 0, 0)

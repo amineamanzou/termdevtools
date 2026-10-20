@@ -114,6 +114,8 @@ cd termdevtools
 
 Les scripts compilent pour votre machine et installent le binaire dans `~/.local/share/termdevtools` (lié dans `~/.local/bin`) ou `%LOCALAPPDATA%\termdevtools`. Les variables `TERMDEVTOOLS_INSTALL_DIR` et `TERMDEVTOOLS_BIN_DIR` changent ces emplacements. Pour seulement compiler : `go build -o termdevtools .`
 
+Sans cloner, à partir de la 0.7.2 : `go install github.com/gnocent/termdevtools@latest` (ou `@v0.7.2` pour une version donnée) place le binaire dans `GOBIN`, ou dans `$(go env GOPATH)/bin` si `GOBIN` n'est pas défini.
+
 ## 3. Première connexion
 
 Lancez `termdevtools`. L'interface démarre en anglais ; une fois connecté, `F3` la passe en français et retient ce choix (ou mettez `language: fr` dans `config.yaml`, §5, avant de relancer). Les libellés ci-dessous sont ceux, en anglais, d'un premier lancement, suivis entre parenthèses de leur équivalent en français.
@@ -197,7 +199,7 @@ Si la variable `XDG_CONFIG_HOME` est définie, le dossier est `$XDG_CONFIG_HOME/
 | `default_timeout_seconds` | `120` | Délai maximal d'une requête, en secondes. |
 | `language` | `en` | Langue de l'interface : `en` ou `fr`. `F3` la change et met cette ligne à jour. |
 | `mouse` | `false` | Active la souris (clic pour changer de panneau, choisir dans une liste). Désactivée, la sélection et le copier-coller du terminal restent disponibles. |
-| `default_ca_dir` | `/etc/pki/tls/certs` sous Linux, vide ailleurs | Dossier proposé pour le champ *Fichier CA* et parcouru par son sélecteur. |
+| `default_ca_dir` | `/etc/pki/tls/certs` sous Linux, vide ailleurs | Dossier d'où part le sélecteur du champ *Fichier CA* (`Entrée` dessus). Le champ lui-même reste vide tant qu'aucun fichier n'est choisi. |
 | `default_client_cert_dir` | idem | Même chose pour le certificat et la clé du client. |
 | `clusters` | vide | L'historique des connexions, le plus récent en premier. Tenu à jour par le programme. |
 

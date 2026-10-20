@@ -2,6 +2,39 @@
 
 # Changelog
 
+## 0.7.2 (beta) — October 2026
+
+**In one sentence**: TermDevTools installs with `go install`, and completion keeps the query after the cursor and accepts a leading `/`.
+
+### What's new
+
+- **`go install github.com/gnocent/termdevtools@latest`**: the module now has the repository's path, and versions are tagged with three numbers (`v0.7.2`), the form Go recognizes. The binary goes to `GOBIN`, or `$(go env GOPATH)/bin` when it is unset. Prebuilt binaries remain the recommended way.
+- **`--version` without a stamped version**: a binary installed with `go install` gives the version installed, and one built with a plain `go build` in a clone gives the version Go derives from git (`v0.7.3-0.<date>-<commit>`, with `+dirty` if files were modified) instead of `dev`. `go run` still says `dev`.
+
+### Completion
+
+- **Query after the cursor**: completing `_cat/ind` in `GET _cat/ind?format=json` gives `_cat/indices?v&format=json` — the candidate's default parameters and your query under a single `?` — instead of a second `?`. Your query is kept as typed, and a key you set replaces the default with the same key.
+- **Leading `/`**: `GET /_cat/pl` completed nothing; it now gives `GET /_cat/plugins?v`, keeping the `/`. A `/_cat/...` entry in an `endpoints.txt` is also recognized as a `_cat` command, so its columns complete too.
+- **A type-ahead search that matches nothing**: `Enter` no longer inserts the entry left selected by an earlier search; it does nothing until the search is corrected (`Backspace`), cancelled (`Esc`) or replaced by an explicit choice — arrows, `Tab`, `PgUp`/`PgDn`, `Home`/`End`, or a click on an entry.
+
+### Development
+
+- `tools/testclusters.sh` runs with the `/bin/bash` 3.2 of macOS, and a test rejects the Bash 4 constructs that broke it.
+
+Thanks to @efd6 for the request (#1) and to @amineamanzou for the changes (#3, #4, #6).
+
+## 0.7.1 (beta) — October 2026
+
+### Fixes
+
+- **An incomplete request line no longer runs the request above it**: `Ctrl+E` on a line such as `GET` still being typed sent the closest request above, a `DELETE` for instance. Nothing is sent now, and the status bar says no request was found. A blank or comment line between two requests still runs the one above.
+- **A new connection no longer fails on Linux because of the certificate directories**: `default_ca_dir` and `default_client_cert_dir` filled the certificate fields of a new connection with a directory, which was then loaded as a file — even in http, where those fields are hidden. They now only set where the certificate picker starts.
+- **TLS files are only read when they are used**: the CA file only for https with verification on, the client certificate only for https. A path saved for a cluster in http, or with verification off, no longer blocks the connection. The command of `F9` follows the same rule.
+- **Two exports in the same second no longer overwrite each other**: the file name now ends with a random number (`YYYYMMDD-HHMMSS-<number>.json`).
+- **`F7` while the `_cat` columns are being fetched**: an answer from before the reload no longer replaces the new columns.
+
+Thanks to @fbaligand for the report (#2) and to @amineamanzou for the fixes (#5, #7).
+
 ## 0.7 (beta) — October 2026
 
 **In one sentence**: TermDevTools reaches a cluster through a proxy, takes API keys the way Kibana gives them as well as Bearer tokens, and no longer writes anything next to its binary.

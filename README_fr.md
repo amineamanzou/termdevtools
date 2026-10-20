@@ -4,17 +4,23 @@
 
 Simulateur en mode terminal de la vue **DevTools** de Kibana, pour interroger un cluster Elasticsearch ou OpenSearch directement depuis un terminal — Linux (dont RHEL 8/9/10), Windows ou macOS — sans navigateur ni Kibana fonctionnel. Un seul binaire, rien d'autre à installer.
 
+## Contextes nommés dans ce fork
+
+La branche `feature/named-contexts-v1` ajoute un inventaire YAML de clusters nommés, un sélecteur avec recherche sous `F6` et des requêtes, curseurs et variables séparés par nom. Le nom actif et le moteur restent visibles. `F7` recharge les déclarations sans reconnexion ; un changement de cible qui échoue conserve la session courante.
+
+Compilez cette branche depuis [le fork d’Amine](https://github.com/amineamanzou/termdevtools/tree/feature/named-contexts-v1), puis lancez `./termdevtools --context prod-eu`. Le [guide des contextes (en anglais)](docs/contexts.md) décrit l’installation, le YAML, les secrets et les changements de session. Les binaires upstream et `go install github.com/gnocent/termdevtools@latest` ne contiennent pas cette fonctionnalité.
+
 > [!IMPORTANT]
-> **Nouveautés de la 0.7 (bêta)**
+> **Nouveautés de la 0.7.2 (bêta)**
 >
-> - **À travers un proxy** — les variables `HTTPS_PROXY` / `HTTP_PROXY` / `NO_PROXY` sont respectées, et `proxy:` dans `config.yaml` fixe ou interdit un proxy pour un cluster donné : HTTP, ou SOCKS5 (ce qu'ouvre `ssh -D`). Le proxy utilisé est toujours affiché.
-> - **Clés d'API telles que Kibana les donne** — la forme `encoded` se colle directement, sans identifiant à saisir.
-> - **Jetons Bearer** — un nouveau type d'authentification, pour un jeton de compte de service, un jeton d'accès ou un JWT.
-> - **Plus rien d'écrit à côté du binaire** — les exports (`Ctrl+S` sur un résultat) vont dans votre dossier de configuration : une installation partagée ou en lecture seule fonctionne entièrement.
+> - **`go install github.com/gnocent/termdevtools@latest`** — pour qui a Go ; les binaires précompilés restent la voie recommandée.
+> - **La complétion garde la requête qui suit le curseur** — `GET _cat/ind?format=json` se complète en `_cat/indices?v&format=json` — et accepte un `/` initial.
+>
+> La 0.7 avait apporté les proxys (`HTTPS_PROXY` / `HTTP_PROXY` / `NO_PROXY`, et `proxy:` par cluster dans `config.yaml`), les clés d'API telles que Kibana les donne, les jetons Bearer, et les exports dans votre dossier de configuration plutôt qu'à côté du binaire.
 >
 > **Avant de mettre à jour depuis la 0.6** : si `HTTPS_PROXY` est défini sur votre poste, vos clusters passeront désormais par ce proxy — voir [Mise à jour](#mise-à-jour-depuis-une-version-antérieure).
 >
-> C'est une **version bêta**, pas encore utilisée par d'autres que son auteur. La 0.6 avait apporté le catalogue de recettes (`F8`) et la prise en charge d'Elasticsearch et d'OpenSearch selon leur version. Détail et limites connues : **[journal des versions](CHANGELOG_fr.md)**.
+> C'est une **version bêta**, encore peu utilisée. Détail et limites connues : **[journal des versions](CHANGELOG_fr.md)**.
 
 - [Démo](#démo)
 - [Pourquoi](#pourquoi)
@@ -87,6 +93,16 @@ Le binaire est statique : il n'a besoin d'aucune bibliothèque système et se co
 
 Nécessite [Go](https://go.dev/) 1.25 ou supérieur.
 
+Installation directe avec Go :
+
+```bash
+go install github.com/gnocent/termdevtools@latest
+```
+
+Le binaire est placé dans `GOBIN`, ou dans `$(go env GOPATH)/bin` si `GOBIN` n'est pas défini. Ajoutez ce dossier à votre `PATH` si besoin.
+
+Pour utiliser les scripts d'installation du dépôt :
+
 ```bash
 # Linux / macOS
 git clone https://github.com/gnocent/termdevtools.git
@@ -111,7 +127,7 @@ Emplacement par défaut : `~/.local/share/termdevtools` sous Linux/macOS (lié v
 
 Pour compiler sans installer : `go build -o termdevtools .`
 
-Le script [`build-release.sh`](build-release.sh) produit dans `dist/` les trois binaires publiés et leur fichier `SHA256SUMS`, en y inscrivant la version (`./build-release.sh v0.7`, ou sans argument ce que `git describe` dit du dépôt) — celle que `termdevtools --version` affiche.
+Le script [`build-release.sh`](build-release.sh) produit dans `dist/` les trois binaires publiés et leur fichier `SHA256SUMS`, en y inscrivant la version (`./build-release.sh v0.7.1`, ou sans argument ce que `git describe` dit du dépôt) — celle que `termdevtools --version` affiche.
 
 ### Arborescence d'installation
 
@@ -204,7 +220,9 @@ Vos recettes s'*ajoutent* à celles du binaire, elles ne remplacent jamais le ca
 
 Référencez un placeholder `${nom}` n'importe où dans l'URL ou le corps JSON d'une requête : il est substitué par une vraie valeur juste avant l'envoi de la requête (`Ctrl+E`) ou la génération d'une commande `curl` (`F9`) — c'est le placeholder lui-même qui est sauvegardé avec vos requêtes, pas la valeur résolue. Une variable non définie bloque l'action avec une erreur claire plutôt que d'envoyer `${nom}` tel quel au cluster.
 
-Les valeurs vivent dans `~/.config/termdevtools/variables_<cluster>.txt` — un fichier par cluster et par utilisateur, même principe que la sauvegarde des requêtes (`Ctrl+S`), au format `nom=valeur` (une par ligne, `#` pour les commentaires). Pas d'éditeur intégré pour ça : ouvrez le fichier directement dans votre éditeur de texte habituel, puis appuyez sur `F7` pour prendre en compte le changement sans redémarrer. Le fichier est créé automatiquement, avec un commentaire explicatif, à la première connexion à un cluster donné.
+Pour les connexions historiques, les valeurs vivent dans `~/.config/termdevtools/variables_<cluster>.txt` — un fichier par cluster et par utilisateur, même principe que la sauvegarde des requêtes (`Ctrl+S`), au format `nom=valeur` (une par ligne, `#` pour les commentaires). Pas d'éditeur intégré pour ça : ouvrez le fichier directement dans votre éditeur de texte habituel, puis appuyez sur `F7` pour prendre en compte le changement sans redémarrer. Le fichier est créé automatiquement, avec un commentaire explicatif, à la première connexion à un cluster donné.
+
+Pour les contextes nommés, requêtes et variables sont isolées dans `contexts/<SHA-256 de "named:" + nom>/` sous le répertoire de configuration. Voir le [guide des contextes](docs/contexts.md).
 
 ## Raccourcis clavier
 
@@ -214,20 +232,21 @@ Les valeurs vivent dans `~/.config/termdevtools/variables_<cluster>.txt` — un 
 | Basculer focus panneau gauche ↔ droit | `Ctrl+←` / `Ctrl+→` [^focus] |
 | Quitter (sauvegarde automatique du panneau gauche) | `Ctrl+C` |
 | Rechercher dans les requêtes / dans le résultat | `Ctrl+F` (selon le panneau focus) |
-| Redimensionner le split gauche/droite | `F5` / `F6` [^redim] |
+| Choisir un contexte nommé ou une connexion historique | `F6` — voir [Contextes](docs/contexts.md) |
+| Redimensionner le split gauche/droite | `Ctrl+Maj+←/→` ; `F5` rétrécit la gauche [^redim] |
 | Sauvegarder (gauche) / exporter (droite) | `Ctrl+S` (selon le panneau focus) |
 | Ouvrir le catalogue de recettes | `F8` — taper pour filtrer, flèches pour se déplacer, `Entrée` pour insérer, `Echap` pour fermer |
 | Compléter un endpoint / une colonne | `Tab`, `F10` ou `Ctrl+Espace` (panneau gauche) [^tab] |
 | Reformater (indenter) le JSON sous le curseur | `F4` (panneau gauche) |
 | Copier la requête sous le curseur en commande `curl` | `F9` (panneau gauche) — secrets masqués, voir [Sécurité](#sécurité) |
-| Recharger vos fichiers édités à la main (variables, recettes, endpoints) | `F7` — voir [Recettes et données de référence](#recettes-et-données-de-référence) |
+| Recharger les contextes et les fichiers édités à la main (variables, recettes, endpoints) | `F7` — voir [Recettes et données de référence](#recettes-et-données-de-référence) |
 | Copier le résultat dans le presse-papier | `F2` |
 | Changer la langue de l'interface (fr/en) | `F3` |
 | Aide | `F1` (`Echap` pour fermer) |
 
 [^entree]: `Ctrl+Entrée` fonctionne aussi sur les terminaux qui le rapportent distinctement d'un simple `Entrée` — beaucoup ne le font pas, d'où `Ctrl+E` comme raccourci principal, toujours fiable.
 [^focus]: Sur macOS, `Option`/`Alt` fonctionne aussi à la place de `Ctrl` — `Ctrl+←/→` est intercepté par le système par défaut (changement d'espace Mission Control).
-[^redim]: `Ctrl+Maj+←/→` (`Option`/`Alt` inclus, sur macOS) fonctionne aussi sur les terminaux qui le rapportent distinctement d'une flèche non modifiée — tous ne le font pas, d'où `F5`/`F6` comme raccourcis principaux, toujours fiables.
+[^redim]: Le terminal doit transmettre les flèches modifiées distinctement ; `Option`/`Alt` fonctionne aussi sur macOS. Dans ce fork, `F6` ouvre les contextes au lieu d’agrandir l’éditeur.
 [^tab]: Sur certains terminaux (notamment PuTTY), `Tab` est absorbé entièrement — aucun événement clavier n'atteint l'appli. `F10` est une alternative garantie fiable. **PuTTY est globalement déconseillé** : aucun souci sous macOS/Windows 10+ natifs.
 
 ## Sécurité

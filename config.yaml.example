@@ -17,12 +17,12 @@ language: en
 # copies the result either way). Optional.
 mouse: false
 
-# Directories used to pre-fill the certificate fields when entering a new
-# connection (§3.0), and browsed by the certificate picker (Enter on the
-# field) to list the files available. By default: the standard system-wide
-# TLS certificate directory of RHEL/CentOS, on Linux only — empty ("", as
-# below) on Windows and macOS, where that path doesn't exist. Leave them
-# empty for no pre-filled path at all.
+# Directories browsed by the certificate picker (Enter on a certificate field
+# when entering a new connection, §3.0) to list the files available; the
+# fields themselves stay empty until a file is chosen. By default: the
+# standard system-wide TLS certificate directory of RHEL/CentOS, on Linux
+# only — empty ("", as below) on Windows and macOS, where that path doesn't
+# exist. Leave them empty to type the paths by hand.
 default_ca_dir: ""
 default_client_cert_dir: ""
 

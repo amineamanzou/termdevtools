@@ -11,16 +11,16 @@ The `feature/named-contexts-v1` branch adds a YAML inventory of named clusters, 
 Build this branch from [Amine's fork](https://github.com/amineamanzou/termdevtools/tree/feature/named-contexts-v1), then start with `./termdevtools --context prod-eu`. See [Named contexts](docs/contexts.md) for installation, YAML examples, credentials and switching behavior. Upstream release binaries and `go install github.com/gnocent/termdevtools@latest` do not include this feature.
 
 > [!IMPORTANT]
-> **What's new in 0.7 (beta)**
+> **What's new in 0.7.2 (beta)**
 >
-> - **Through a proxy** — the `HTTPS_PROXY` / `HTTP_PROXY` / `NO_PROXY` variables are honored, and `proxy:` in `config.yaml` sets or rules out a proxy for a given cluster: HTTP, or SOCKS5 (what `ssh -D` opens). The proxy in use is always displayed.
-> - **API keys the way Kibana gives them** — the `encoded` form is pasted as it is, with no identifier to enter.
-> - **Bearer tokens** — a new authentication type, for a service account token, an access token or a JWT.
-> - **Nothing written next to the binary anymore** — exports (`Ctrl+S` on a result) go to your configuration directory: a shared or read-only installation works in full.
+> - **`go install github.com/gnocent/termdevtools@latest`** — for those who have Go; the prebuilt binaries remain the recommended way.
+> - **Completion keeps the query after the cursor** — `GET _cat/ind?format=json` completes to `_cat/indices?v&format=json` — and accepts a leading `/`.
+>
+> 0.7 had brought proxies (`HTTPS_PROXY` / `HTTP_PROXY` / `NO_PROXY`, and `proxy:` per cluster in `config.yaml`), API keys the way Kibana gives them, Bearer tokens, and exports in your configuration directory rather than next to the binary.
 >
 > **Before upgrading from 0.6**: if `HTTPS_PROXY` is set on your machine, your clusters will now go through that proxy — see [Upgrading](#upgrading-from-an-earlier-version).
 >
-> This is a **beta version**, not yet used by anyone but its author. 0.6 had brought the recipe catalog (`F8`) and support for Elasticsearch and OpenSearch according to their version. Details and known limits: **[changelog](CHANGELOG.md)**.
+> This is a **beta version**, still used by few people. Details and known limits: **[changelog](CHANGELOG.md)**.
 
 - [Demo](#demo)
 - [Why](#why)
@@ -127,7 +127,7 @@ Default install location: `~/.local/share/termdevtools` on Linux/macOS (symlinke
 
 To build without installing: `go build -o termdevtools .`
 
-The [`build-release.sh`](build-release.sh) script produces the three published binaries and their `SHA256SUMS` file in `dist/`, stamping them with the version (`./build-release.sh v0.7`, or without an argument what `git describe` says of the checkout) — the one `termdevtools --version` prints.
+The [`build-release.sh`](build-release.sh) script produces the three published binaries and their `SHA256SUMS` file in `dist/`, stamping them with the version (`./build-release.sh v0.7.1`, or without an argument what `git describe` says of the checkout) — the one `termdevtools --version` prints.
 
 ### Installation layout
 
@@ -220,7 +220,9 @@ Your recipes are *added* to the built-in ones, never a replacement for the whole
 
 Reference a `${name}` placeholder anywhere in a request's URL or JSON body, and it's substituted with a real value just before the request is sent (`Ctrl+E`) or a `curl` command is generated for it (`F9`) — the placeholder itself is what gets saved with your requests, not the resolved value. An undefined variable stops the action with a clear error instead of sending `${name}` to the cluster literally.
 
-Values live in `~/.config/termdevtools/variables_<cluster>.txt` — one per cluster and per user, same scheme as the request save (`Ctrl+S`) — as plain `name=value` lines (`#` for comments). There's no in-app editor for it: open the file directly in your usual text editor, then press `F7` to pick up the change without restarting. The file is created automatically, with an explanatory comment, the first time you connect to a given cluster.
+For historical connections, values live in `~/.config/termdevtools/variables_<cluster>.txt` — one per cluster and per user, same scheme as the request save (`Ctrl+S`) — as plain `name=value` lines (`#` for comments). There's no in-app editor for it: open the file directly in your usual text editor, then press `F7` to pick up the change without restarting. The file is created automatically, with an explanatory comment, the first time you connect to a given cluster.
+
+Named contexts isolate requests and variables in `contexts/<SHA-256 of "named:" + name>/` under the configuration directory. See the [context guide](docs/contexts.md).
 
 ## Keyboard shortcuts
 
